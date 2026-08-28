@@ -13,7 +13,7 @@ export default definePageLayout({
       position: 0,
       icon: 'IconCalendarEvent',
       layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
-      widgets: [{ universalIdentifier: '478e3542-918f-4f61-a19a-feffe71483cb', title: 'Dados do evento', type: 'FIELDS', configuration: { configurationType: 'FIELDS' } }],
+      widgets: [{ universalIdentifier: '478e3542-918f-4f61-a19a-feffe71483cb', title: 'Dados do evento', type: 'FIELDS', configuration: { configurationType: 'FIELDS', viewUniversalIdentifier: null } }],
     },
     {
       universalIdentifier: 'd5fd6953-c3cb-42ff-af3a-f072a0376b28',

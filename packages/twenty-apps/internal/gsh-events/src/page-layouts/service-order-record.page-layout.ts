@@ -13,7 +13,7 @@ export default definePageLayout({
       position: 0,
       icon: 'IconClipboardCheck',
       layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
-      widgets: [{ universalIdentifier: '473d1a45-2a9c-4b37-8700-95b090752e01', title: 'Dados operacionais', type: 'FIELDS', configuration: { configurationType: 'FIELDS' } }],
+      widgets: [{ universalIdentifier: '473d1a45-2a9c-4b37-8700-95b090752e01', title: 'Dados operacionais', type: 'FIELDS', configuration: { configurationType: 'FIELDS', viewUniversalIdentifier: null } }],
     },
     {
       universalIdentifier: '7a6868bf-68b4-4080-b871-ff4b5a142ae8',

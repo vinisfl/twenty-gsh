@@ -13,7 +13,7 @@ export default definePageLayout({
       position: 0,
       icon: 'IconFileInvoice',
       layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
-      widgets: [{ universalIdentifier: '5ca8e2a9-7a59-4c62-bbf1-cd1fa6a2cfa8', title: 'Dados da proposta', type: 'FIELDS', configuration: { configurationType: 'FIELDS' } }],
+      widgets: [{ universalIdentifier: '5ca8e2a9-7a59-4c62-bbf1-cd1fa6a2cfa8', title: 'Dados da proposta', type: 'FIELDS', configuration: { configurationType: 'FIELDS', viewUniversalIdentifier: null } }],
     },
     {
       universalIdentifier: '41ce40cf-2b48-45ff-9dbd-25d3c82141e3',
