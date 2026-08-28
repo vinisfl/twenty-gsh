@@ -1,0 +1,21 @@
+export type CorporateEventUpdate = {
+  id?: string;
+  name?: string;
+  eventType?: string;
+  startAt?: string;
+  endAt?: string;
+  city?: string;
+  serviceFormat?: string;
+  rooms?: string;
+  menuSummary?: string;
+  restrictions?: string;
+  confirmedAudience?: number;
+  assemblyStatus?: string;
+  travelStatus?: string;
+  supplyStatus?: string;
+  teamStatus?: string;
+  executionStatus?: string;
+  executionNotes?: string;
+  feedbackStatus?: string;
+  feedback?: string;
+};
