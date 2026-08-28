@@ -14,6 +14,7 @@ import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/
 import { useEffect } from 'react';
 import { type Nullable } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
+import { AggregateOperations } from '~/generated-metadata/graphql';
 
 export const RecordIndexGroupAggregateQueryEffect = ({
   recordIndexGroupFieldMetadataItem,
@@ -33,7 +34,7 @@ export const RecordIndexGroupAggregateQueryEffect = ({
     recordIndexGroupAggregateOperation,
   });
 
-  const { recordAggregateGqlField } =
+  const { recordAggregateGqlFields } =
     useAggregateGqlFieldsFromRecordIndexGroupAggregates({
       objectMetadataItem,
       recordIndexGroupAggregateFieldMetadataItem,
@@ -54,19 +55,40 @@ export const RecordIndexGroupAggregateQueryEffect = ({
     recordGroupDefinitionsComponentSelector,
   );
 
+  const isCountAndSumOperation =
+    recordIndexGroupAggregateOperation === AggregateOperations.COUNT_AND_SUM;
+
   useEffect(() => {
+    const getRawValueFromAggregateValues = (
+      recordAggregateValuesByGqlField: Record<
+        string,
+        Nullable<string | number>
+      >,
+    ) => {
+      if (isCountAndSumOperation) {
+        const [countGqlField, sumGqlField] = recordAggregateGqlFields;
+        return {
+          count: recordAggregateValuesByGqlField[countGqlField] ?? 0,
+          sum: recordAggregateValuesByGqlField[sumGqlField] ?? 0,
+        };
+      }
+
+      const [singleOperationGqlField] = recordAggregateGqlFields;
+      return recordAggregateValuesByGqlField[singleOperationGqlField] ?? 0;
+    };
+
     if (
       !loading &&
       !isDefined(error) &&
       isDefined(data) &&
-      isDefined(recordAggregateGqlField)
+      recordAggregateGqlFields.length > 0
     ) {
       const { recordAggregateValueByGroupValueArray } =
         turnRecordIndexGroupByAggregateQueryResultIntoRecordAggregateValueByGroupValue(
           {
             objectMetadataItem,
             queryResult: data,
-            recordAggregateGqlField,
+            recordAggregateGqlFields,
           },
         );
 
@@ -89,14 +111,16 @@ export const RecordIndexGroupAggregateQueryEffect = ({
               recordIndexGroupAggregateOperation,
               recordIndexGroupAggregateFieldMetadataItem,
               foundAggregateValueForGroup.recordGroupValue ?? '',
-              foundAggregateValueForGroup.recordAggregateValue,
+              getRawValueFromAggregateValues(
+                foundAggregateValueForGroup.recordAggregateValuesByGqlField,
+              ),
             );
           } else {
             setRecordIndexAggregateDisplayValueForRecordGroupValue(
               recordIndexGroupAggregateOperation,
               recordIndexGroupAggregateFieldMetadataItem,
               recordGroupDefinition.value ?? '',
-              0,
+              getRawValueFromAggregateValues({}),
             );
           }
         }
@@ -110,10 +134,11 @@ export const RecordIndexGroupAggregateQueryEffect = ({
     setRecordIndexAggregateDisplayLabel,
     recordIndexGroupAggregateFieldMetadataItem,
     recordIndexGroupAggregateOperation,
-    recordAggregateGqlField,
+    recordAggregateGqlFields,
     recordIndexAggregateDisplayLabel,
     objectMetadataItem,
     recordGroupDefinitions,
+    isCountAndSumOperation,
   ]);
 
   return null;

@@ -4,6 +4,7 @@ import { type DateFormat } from '@/localization/constants/DateFormat';
 import { type NumberFormat } from '@/localization/constants/NumberFormat';
 import { type TimeFormat } from '@/localization/constants/TimeFormat';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
+import { AggregateOperations as FrontendAggregateOperations } from '@/object-record/record-table/constants/AggregateOperations';
 import { COUNT_AGGREGATE_OPERATION_OPTIONS } from '@/object-record/record-table/record-table-footer/constants/countAggregateOperationOptions';
 import { PERCENT_AGGREGATE_OPERATION_OPTIONS } from '@/object-record/record-table/record-table-footer/constants/percentAggregateOperationOptions';
 import { type ExtendedAggregateOperations } from '@/object-record/record-table/types/ExtendedAggregateOperations';
@@ -18,6 +19,11 @@ import { formatNumber } from '~/utils/format/formatNumber';
 import { formatDateString } from '~/utils/string/formatDateString';
 import { formatDateTimeString } from '~/utils/string/formatDateTimeString';
 
+export type CombinedAggregateRawValue = {
+  count: Nullable<string | number>;
+  sum: Nullable<string | number>;
+};
+
 export const transformAggregateRawValueIntoAggregateDisplayValue = ({
   aggregateFieldMetadataItem,
   aggregateOperation,
@@ -31,7 +37,7 @@ export const transformAggregateRawValueIntoAggregateDisplayValue = ({
 }: {
   aggregateFieldMetadataItem: Nullable<FieldMetadataItem>;
   aggregateOperation: ExtendedAggregateOperations;
-  aggregateRawValue: Nullable<string | number>;
+  aggregateRawValue: Nullable<string | number | CombinedAggregateRawValue>;
   dateFormat: DateFormat;
   timeFormat: TimeFormat;
   timeZone: string;
@@ -41,6 +47,39 @@ export const transformAggregateRawValueIntoAggregateDisplayValue = ({
 }): string => {
   if (!isDefined(aggregateRawValue)) {
     return '-';
+  } else if (typeof aggregateRawValue === 'object') {
+    if (
+      aggregateOperation !== FrontendAggregateOperations.COUNT_AND_SUM ||
+      !isDefined(aggregateFieldMetadataItem)
+    ) {
+      return '-';
+    }
+
+    const countLabel = transformAggregateRawValueIntoAggregateDisplayValue({
+      aggregateFieldMetadataItem: null,
+      aggregateOperation: FrontendAggregateOperations.COUNT,
+      aggregateRawValue: aggregateRawValue.count,
+      dateFormat,
+      timeFormat,
+      timeZone,
+      localeCatalog,
+      numberFormat,
+      chartNumberFormat,
+    });
+
+    const sumLabel = transformAggregateRawValueIntoAggregateDisplayValue({
+      aggregateFieldMetadataItem,
+      aggregateOperation: FrontendAggregateOperations.SUM,
+      aggregateRawValue: aggregateRawValue.sum,
+      dateFormat,
+      timeFormat,
+      timeZone,
+      localeCatalog,
+      numberFormat,
+      chartNumberFormat,
+    });
+
+    return `${countLabel} · ${sumLabel}`;
   } else if (
     COUNT_AGGREGATE_OPERATION_OPTIONS.includes(
       aggregateOperation as AggregateOperations,

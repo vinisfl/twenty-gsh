@@ -67,5 +67,10 @@ export const buildAggregateFieldKey = ({
       }
 
       return `sum${capitalize(fieldName)}`;
+
+    case AggregateOperations.COUNT_AND_SUM:
+      throw new Error(
+        `Aggregate operation ${aggregateOperation} is not supported for dashboard charts`,
+      );
   }
 };

@@ -29,6 +29,13 @@ export const RecordGroupAggregateDropdownMenuContent = () => {
         />
         <MenuItem
           onClick={() => {
+            onContentChange('countAndSumAggregateOperationsOptions');
+          }}
+          text={t`Count and sum`}
+          hasSubMenu
+        />
+        <MenuItem
+          onClick={() => {
             onContentChange('percentAggregateOperationsOptions');
           }}
           text={t`Percent`}

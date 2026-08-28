@@ -288,6 +288,39 @@ describe('transformAggregateRawValueIntoAggregateDisplayValue', () => {
     ).toBe('1 Jan, 2000');
   });
 
+  it('should return correct combined display value for COUNT_AND_SUM of a currency field', () => {
+    const mockCurrencyFieldMetadataItem = {
+      ...mockCompanyEmployeesFieldMetadataItem,
+      type: FieldMetadataType.CURRENCY,
+    } as FieldMetadataItem;
+
+    expect(
+      transformAggregateRawValueIntoAggregateDisplayValue({
+        aggregateFieldMetadataItem: mockCurrencyFieldMetadataItem,
+        aggregateOperation: AggregateOperations.COUNT_AND_SUM,
+        aggregateRawValue: { count: 3, sum: 18000000000 },
+        dateFormat: DateFormat.DAY_FIRST,
+        timeFormat: TimeFormat.HOUR_24,
+        localeCatalog: enUS,
+        timeZone: 'UTC',
+      }),
+    ).toBe('3 · 18k');
+  });
+
+  it('should return "-" for COUNT_AND_SUM without a field metadata item', () => {
+    expect(
+      transformAggregateRawValueIntoAggregateDisplayValue({
+        aggregateFieldMetadataItem: undefined,
+        aggregateOperation: AggregateOperations.COUNT_AND_SUM,
+        aggregateRawValue: { count: 3, sum: 18000000000 },
+        dateFormat: DateFormat.DAY_FIRST,
+        timeFormat: TimeFormat.HOUR_24,
+        localeCatalog: enUS,
+        timeZone: 'UTC',
+      }),
+    ).toBe('-');
+  });
+
   it('should return correct DATE_TIME formatted value', () => {
     const mockDateFieldMetadataItem = {
       ...mockCompanyEmployeesFieldMetadataItem,

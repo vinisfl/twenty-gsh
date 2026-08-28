@@ -1,6 +1,9 @@
 import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
-import { transformAggregateRawValueIntoAggregateDisplayValue } from '@/object-record/record-aggregate/utils/transformAggregateRawValueIntoAggregateDisplayValue';
+import {
+  type CombinedAggregateRawValue,
+  transformAggregateRawValueIntoAggregateDisplayValue,
+} from '@/object-record/record-aggregate/utils/transformAggregateRawValueIntoAggregateDisplayValue';
 import { recordIndexAggregateDisplayValueForGroupValueComponentFamilyState } from '@/object-record/record-index/states/recordIndexAggregateDisplayValueForGroupValueComponentFamilyState';
 import { type ExtendedAggregateOperations } from '@/object-record/record-table/types/ExtendedAggregateOperations';
 import { useAtomComponentFamilyStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateCallbackState';
@@ -28,7 +31,7 @@ export const useSetRecordIndexAggregateDisplayValueForRecordGroupValue = () => {
       recordIndexGroupAggregateOperation: ExtendedAggregateOperations,
       recordIndexGroupAggregateFieldMetadataItem: FieldMetadataItem,
       recordIndexGroupValue: string,
-      rawValue: Nullable<string | number>,
+      rawValue: Nullable<string | number | CombinedAggregateRawValue>,
     ) => {
       const aggregateDisplayValue =
         transformAggregateRawValueIntoAggregateDisplayValue({

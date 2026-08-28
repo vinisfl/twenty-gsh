@@ -18,6 +18,8 @@ export const getAggregateOperationLabel = (
       return t`Sum`;
     case AggregateOperations.COUNT:
       return t`Count all`;
+    case AggregateOperations.COUNT_AND_SUM:
+      return t`Count and sum`;
     case AggregateOperations.COUNT_EMPTY:
       return t`Count empty`;
     case AggregateOperations.COUNT_NOT_EMPTY:

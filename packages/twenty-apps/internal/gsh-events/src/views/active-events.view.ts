@@ -1,4 +1,4 @@
-import { defineView, STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS, ViewFilterOperand, ViewType } from 'twenty-sdk/define';
+import { AggregateOperations, defineView, STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS, ViewFilterOperand, ViewType } from 'twenty-sdk/define';
 
 import { EVENT_PROCESS_STAGE } from 'src/constants/domain-options';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
@@ -34,6 +34,8 @@ export default defineView({
   icon: 'IconLayoutKanban',
   position: 0,
   mainGroupByFieldMetadataUniversalIdentifier: OPPORTUNITY_PROCESS_STAGE_FIELD_UNIVERSAL_IDENTIFIER,
+  kanbanAggregateOperation: AggregateOperations.COUNT_AND_SUM,
+  kanbanAggregateOperationFieldMetadataUniversalIdentifier: opportunityFields.amount.universalIdentifier,
   groups: activeStages.map((option, index) => ({ universalIdentifier: groupIds[index], fieldValue: option.value, position: index, isVisible: true })),
   fields: [
     { universalIdentifier: 'b1cf661a-e597-4d9c-801c-2d5f4baf153d', fieldMetadataUniversalIdentifier: opportunityFields.name.universalIdentifier, position: 0, isVisible: true, size: 220 },
