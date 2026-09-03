@@ -177,12 +177,56 @@ export const UPDATE_EVENT_COMMAND_UNIVERSAL_IDENTIFIER =
   '84002dbf-e94e-466d-9a66-f31c13810ce3';
 export const UPDATE_EVENT_ROUTE_UNIVERSAL_IDENTIFIER =
   '9e60f68a-9cde-42ca-aa6c-eee64a660728';
+// Rotated to fresh ids when this tab moved from the standard Opportunity
+// page layout to this app's own one (see opportunity-record.page-layout.ts)
+// — the old ids can't be "moved" between page layouts, only re-created.
 export const OPPORTUNITY_EVENT_TAB_UNIVERSAL_IDENTIFIER =
-  'bdf51bec-8653-44b4-bcb4-eadcad125e0b';
+  '6e888191-fc3a-4502-855a-22f60d0ae528';
 export const OPPORTUNITY_EVENT_WIDGET_UNIVERSAL_IDENTIFIER =
-  'd82174f3-35ec-4f7a-92b5-4a9780bf7691';
+  '57262b17-5a04-4487-af98-f0275b65f803';
 
 export const STATUS_NOW_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER =
   'ce6d9899-6037-4679-9731-fefdd8edc759';
 export const OPPORTUNITY_STATUS_NOW_WIDGET_UNIVERSAL_IDENTIFIER =
   '3106d339-2eb2-423b-92e4-86e8697cbdb4';
+
+// Standard tabs/widgets can't be overridden in place (they belong to the
+// Twenty Standard application), so this app owns a full replacement
+// Opportunity record page instead — every id below is a fresh one, not a
+// reuse of a STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS.opportunityRecordPage id.
+export const OPPORTUNITY_RECORD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIER =
+  'e8dd7af9-bd63-4291-8461-dba2ee5121eb';
+export const OPPORTUNITY_HOME_TAB_UNIVERSAL_IDENTIFIER =
+  'a1c4a5d9-c679-4aa5-ac20-cf5ec260a09c';
+export const OPPORTUNITY_FIELDS_WIDGET_UNIVERSAL_IDENTIFIER =
+  '75f4ab83-8484-409c-bd8a-ac9e435b6aff';
+export const OPPORTUNITY_POINT_OF_CONTACT_WIDGET_UNIVERSAL_IDENTIFIER =
+  '1500b86b-cade-4166-96af-ba87594335ef';
+export const OPPORTUNITY_COMPANY_WIDGET_UNIVERSAL_IDENTIFIER =
+  'f734287c-cff5-4814-b8e6-8693c65d5006';
+export const OPPORTUNITY_OWNER_WIDGET_UNIVERSAL_IDENTIFIER =
+  '6531f338-258d-480a-885c-a4afd5e338cd';
+export const OPPORTUNITY_TIMELINE_TAB_UNIVERSAL_IDENTIFIER =
+  '9bc15abf-fa47-4cc5-820d-6377dc650bd0';
+export const OPPORTUNITY_TIMELINE_WIDGET_UNIVERSAL_IDENTIFIER =
+  'c3d28329-a488-4465-8006-9f458d904e27';
+export const OPPORTUNITY_TASKS_TAB_UNIVERSAL_IDENTIFIER =
+  'bdd5cdf8-52a4-4bae-a829-1c04e13ea7d4';
+export const OPPORTUNITY_TASKS_WIDGET_UNIVERSAL_IDENTIFIER =
+  '6fd8bc33-b425-42f7-a327-e34944315083';
+export const OPPORTUNITY_NOTES_TAB_UNIVERSAL_IDENTIFIER =
+  'f45786d5-6a86-4afd-9b41-4c264dbdb366';
+export const OPPORTUNITY_NOTES_WIDGET_UNIVERSAL_IDENTIFIER =
+  '8c9f60f6-e5f5-43b0-85bd-502a44f5b28b';
+export const OPPORTUNITY_FILES_TAB_UNIVERSAL_IDENTIFIER =
+  '08312fb5-aa50-486c-b52e-fd12ee1ee909';
+export const OPPORTUNITY_FILES_WIDGET_UNIVERSAL_IDENTIFIER =
+  'a74b5433-e9a7-436d-81e8-2279f60fd012';
+export const OPPORTUNITY_EMAILS_TAB_UNIVERSAL_IDENTIFIER =
+  'c0e2ad5b-e247-400e-bac4-e6bcdcd9d28c';
+export const OPPORTUNITY_EMAILS_WIDGET_UNIVERSAL_IDENTIFIER =
+  'ad2fa114-44d8-4998-99d1-97d86b53a3b6';
+export const OPPORTUNITY_CALENDAR_TAB_UNIVERSAL_IDENTIFIER =
+  'd8ff3e7f-83e9-41b8-a628-8fe788eb297f';
+export const OPPORTUNITY_CALENDAR_WIDGET_UNIVERSAL_IDENTIFIER =
+  '05bb7f6f-9214-4d2b-bf19-e369cc87c352';
