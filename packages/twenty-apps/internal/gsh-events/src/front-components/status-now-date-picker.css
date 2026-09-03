@@ -1,0 +1,34 @@
+.gsh-reschedule-calendar.react-datepicker {
+  background: var(--t-background-primary);
+  border: 1px solid var(--t-border-color-medium);
+  border-radius: var(--t-border-radius-sm);
+  color: var(--t-font-color-primary);
+  font-family: var(--t-font-family);
+}
+
+.gsh-reschedule-calendar .react-datepicker__header,
+.gsh-reschedule-calendar .react-datepicker__time-container,
+.gsh-reschedule-calendar .react-datepicker__time {
+  background: var(--t-background-primary);
+  border-color: var(--t-border-color-light);
+}
+
+.gsh-reschedule-calendar .react-datepicker__current-month,
+.gsh-reschedule-calendar .react-datepicker-time__header,
+.gsh-reschedule-calendar .react-datepicker__day-name,
+.gsh-reschedule-calendar .react-datepicker__day,
+.gsh-reschedule-calendar .react-datepicker__time-list-item {
+  color: var(--t-font-color-primary);
+}
+
+.gsh-reschedule-calendar .react-datepicker__day:hover,
+.gsh-reschedule-calendar .react-datepicker__time-list-item:hover {
+  background: var(--t-background-transparent-light);
+}
+
+.gsh-reschedule-calendar .react-datepicker__day--selected,
+.gsh-reschedule-calendar .react-datepicker__day--keyboard-selected,
+.gsh-reschedule-calendar .react-datepicker__time-list-item--selected {
+  background: var(--t-color-blue);
+  color: var(--t-white);
+}

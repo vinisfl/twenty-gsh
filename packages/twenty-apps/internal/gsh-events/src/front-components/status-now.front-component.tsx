@@ -1,6 +1,8 @@
 import { Fragment, type CSSProperties, useCallback, useEffect, useState } from 'react';
+import DatePicker, { registerLocale } from 'react-datepicker';
 import { CoreApiClient } from 'twenty-client-sdk/core';
 import { defineFrontComponent } from 'twenty-sdk/define';
+import { ptBR } from 'date-fns/locale';
 import {
   Trans,
   enqueueSnackbar,
@@ -19,10 +21,13 @@ import {
   hasLinkedTaskWithTitle,
   type LinkedTask,
 } from 'src/front-components/utils/get-next-open-task.util';
-import { fromDateTimeLocalValue } from 'src/front-components/utils/from-date-time-local-value.util';
-import { toDateTimeLocalValue } from 'src/front-components/utils/to-date-time-local-value.util';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
+
+import 'react-datepicker/dist/react-datepicker.css';
+import './status-now-date-picker.css';
+
+registerLocale('pt-BR', ptBR);
 
 const theme = {
   spacing1: 'var(--t-spacing-1)',
@@ -125,16 +130,6 @@ const styles: Record<string, CSSProperties> = {
   completeButton: {
     borderColor: 'var(--t-tag-text-green)',
     color: 'var(--t-tag-text-green)',
-  },
-  dateTimeInput: {
-    minWidth: '190px',
-    padding: theme.spacing1,
-    border: `1px solid ${theme.border}`,
-    borderRadius: 'var(--t-border-radius-sm)',
-    background: theme.backgroundPrimary,
-    color: theme.fontPrimary,
-    fontFamily: theme.fontFamily,
-    fontSize: theme.sizeXs,
   },
   resolveButton: {
     flexShrink: 0,
@@ -311,7 +306,7 @@ const StatusNow = () => {
   const [error, setError] = useState(false);
   const [isResolvingPending, setIsResolvingPending] = useState(false);
   const [isUpdatingNextAction, setIsUpdatingNextAction] = useState(false);
-  const [rescheduleValue, setRescheduleValue] = useState<string | null>(null);
+  const [rescheduleValue, setRescheduleValue] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     if (!opportunityId) {
@@ -497,6 +492,59 @@ const StatusNow = () => {
     }
   };
 
+  const storeRescheduleHistory = async ({
+    taskTitle,
+    previousDueAt,
+    dueAt,
+  }: {
+    taskTitle: string | null;
+    previousDueAt: string | null;
+    dueAt: string;
+  }) => {
+    if (!opportunityId) {
+      throw new Error('Opportunity not found');
+    }
+
+    const noteResult = await new CoreApiClient().mutation({
+      createNote: {
+        __args: {
+          data: {
+            title: 'Próxima ação reagendada',
+            bodyV2: {
+              markdown: [
+                `A próxima ação **${taskTitle ?? 'sem título'}** foi reagendada.`,
+                '',
+                `De: ${formatDateTime(previousDueAt)}`,
+                `Para: ${formatDateTime(dueAt)}`,
+              ].join('\n'),
+            },
+          },
+        },
+        id: true,
+      },
+    });
+
+    if (!noteResult.createNote?.id) {
+      throw new Error('Não foi possível armazenar o histórico do reagendamento.');
+    }
+
+    const targetResult = await new CoreApiClient().mutation({
+      createNoteTarget: {
+        __args: {
+          data: {
+            noteId: noteResult.createNote.id,
+            targetOpportunityId: opportunityId,
+          },
+        },
+        id: true,
+      },
+    });
+
+    if (!targetResult.createNoteTarget?.id) {
+      throw new Error('Não foi possível vincular o histórico à oportunidade.');
+    }
+  };
+
   const completeNextAction = async () => {
     if (isUpdatingNextAction) {
       return;
@@ -535,15 +583,15 @@ const StatusNow = () => {
   };
 
   const saveReschedule = async () => {
-    if (!rescheduleValue || isUpdatingNextAction) {
+    if (
+      !rescheduleValue ||
+      Number.isNaN(rescheduleValue.getTime()) ||
+      isUpdatingNextAction
+    ) {
       return;
     }
 
-    const dueAt = fromDateTimeLocalValue(rescheduleValue);
-
-    if (!dueAt) {
-      return;
-    }
+    const dueAt = rescheduleValue.toISOString();
 
     setIsUpdatingNextAction(true);
     try {
@@ -563,6 +611,11 @@ const StatusNow = () => {
           : currentRecord,
       );
       setRescheduleValue(null);
+      await storeRescheduleHistory({
+        taskTitle: task.title,
+        previousDueAt: task.dueAt,
+        dueAt,
+      });
     } catch (updateError) {
       await enqueueSnackbar({
         message:
@@ -635,11 +688,16 @@ const StatusNow = () => {
                 <button
                   type="button"
                   style={styles.actionButton}
-                  onClick={() =>
+                  onClick={() => {
+                    const selectedDate = nextActionAt
+                      ? new Date(nextActionAt)
+                      : new Date();
                     setRescheduleValue(
-                      toDateTimeLocalValue(nextActionAt ?? new Date().toISOString()),
-                    )
-                  }
+                      Number.isNaN(selectedDate.getTime())
+                        ? new Date()
+                        : selectedDate,
+                    );
+                  }}
                   disabled={isUpdatingNextAction}
                 >
                   <Trans>Reagendar</Trans>
@@ -647,12 +705,17 @@ const StatusNow = () => {
               </div>
             ) : (
               <div style={styles.actionControls}>
-                <input
-                  type="datetime-local"
-                  aria-label="Nova data e hora da próxima ação"
-                  style={styles.dateTimeInput}
-                  value={rescheduleValue}
-                  onChange={(event) => setRescheduleValue(event.target.value)}
+                <DatePicker
+                  selected={rescheduleValue}
+                  onChange={(date: Date | null) => setRescheduleValue(date)}
+                  inline
+                  locale="pt-BR"
+                  showTimeSelect
+                  timeFormat="HH:mm"
+                  timeIntervals={15}
+                  timeCaption="Horário"
+                  dateFormat="dd/MM/yyyy, HH:mm"
+                  calendarClassName="gsh-reschedule-calendar"
                   disabled={isUpdatingNextAction}
                 />
                 <button
