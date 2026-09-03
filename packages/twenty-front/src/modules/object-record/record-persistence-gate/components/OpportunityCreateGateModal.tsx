@@ -13,6 +13,7 @@ import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
+import { PreComputedChipGeneratorsProvider } from '@/object-metadata/components/PreComputedChipGeneratorsProvider';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { buildRecordLabelPayload } from '@/object-record/utils/buildRecordLabelPayload';
@@ -69,11 +70,15 @@ const StyledModalActions = styled.div`
 //
 // Mounted once, always, at the workspace app shell level (WorkspaceAppProviders),
 // which sits above the metadata-readiness gate the rest of the routed app relies
-// on (MinimalMetadataGate). useCreateOneRecord throws if object metadata for its
-// object isn't loaded yet, so this outer component defers rendering the part of
-// the tree that calls it until the Opportunity object metadata item itself is
+// on (MinimalMetadataGate) and outside the <Outlet /> it wraps with
+// PreComputedChipGeneratorsProvider (needed to render a picked record as a
+// RecordChip). useCreateOneRecord throws if object metadata for its object
+// isn't loaded yet, so this outer component defers rendering the part of the
+// tree that calls it until the Opportunity object metadata item itself is
 // available (checked directly, rather than via isMinimalMetadataReadyState,
-// which can report ready before this specific selector has caught up).
+// which can report ready before this specific selector has caught up), and
+// re-provides PreComputedChipGeneratorsProvider locally since MinimalMetadataGate's
+// instance doesn't reach this subtree.
 export const OpportunityCreateGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
     objectMetadataItemFamilySelector,
@@ -87,7 +92,11 @@ export const OpportunityCreateGateModal = () => {
     return null;
   }
 
-  return <OpportunityCreateGateModalContent />;
+  return (
+    <PreComputedChipGeneratorsProvider>
+      <OpportunityCreateGateModalContent />
+    </PreComputedChipGeneratorsProvider>
+  );
 };
 
 const OpportunityCreateGateModalContent = () => {
