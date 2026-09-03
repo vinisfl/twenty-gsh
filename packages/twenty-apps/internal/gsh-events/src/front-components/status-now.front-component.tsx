@@ -13,6 +13,14 @@ import {
   getStepStatus,
   type StepStatus,
 } from 'src/front-components/utils/get-step-status.util';
+import {
+  getNextOpenTask,
+  getNextOpenTaskWithTitle,
+  hasLinkedTaskWithTitle,
+  type LinkedTask,
+} from 'src/front-components/utils/get-next-open-task.util';
+import { fromDateTimeLocalValue } from 'src/front-components/utils/from-date-time-local-value.util';
+import { toDateTimeLocalValue } from 'src/front-components/utils/to-date-time-local-value.util';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
 
@@ -80,6 +88,53 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--t-tag-text-orange)',
     fontWeight: 500,
     overflowWrap: 'anywhere',
+  },
+  nextAction: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing2,
+    padding: theme.spacing3,
+    border: `1px solid ${theme.borderLight}`,
+    borderRadius: 'var(--t-border-radius-sm)',
+  },
+  nextActionDetails: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing1,
+    minWidth: 0,
+  },
+  nextActionTitle: { fontWeight: 600, overflowWrap: 'anywhere' },
+  nextActionDate: { color: theme.fontTertiary, fontSize: theme.sizeXs },
+  actionControls: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: theme.spacing2,
+  },
+  actionButton: {
+    padding: `${theme.spacing1} ${theme.spacing2}`,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 'var(--t-border-radius-sm)',
+    background: theme.backgroundPrimary,
+    color: theme.fontPrimary,
+    fontFamily: theme.fontFamily,
+    fontSize: theme.sizeXs,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  completeButton: {
+    borderColor: 'var(--t-tag-text-green)',
+    color: 'var(--t-tag-text-green)',
+  },
+  dateTimeInput: {
+    minWidth: '190px',
+    padding: theme.spacing1,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 'var(--t-border-radius-sm)',
+    background: theme.backgroundPrimary,
+    color: theme.fontPrimary,
+    fontFamily: theme.fontFamily,
+    fontSize: theme.sizeXs,
   },
   resolveButton: {
     flexShrink: 0,
@@ -221,6 +276,26 @@ type OpportunityStatusRecord = {
   eventProcessStage: string | null;
   eventCurrentSituation: string | null;
   eventCurrentPending: string | null;
+  eventNextAction: string | null;
+  eventNextActionAt: string | null;
+  tasks: LinkedTask[];
+};
+
+const formatDateTime = (value: string | null): string => {
+  if (!value) {
+    return 'Sem data definida';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Sem data definida';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date);
 };
 
 const StatusNow = () => {
@@ -235,6 +310,8 @@ const StatusNow = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [isResolvingPending, setIsResolvingPending] = useState(false);
+  const [isUpdatingNextAction, setIsUpdatingNextAction] = useState(false);
+  const [rescheduleValue, setRescheduleValue] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!opportunityId) {
@@ -251,14 +328,44 @@ const StatusNow = () => {
           eventProcessStage: true,
           eventCurrentSituation: true,
           eventCurrentPending: true,
+          eventNextAction: true,
+          eventNextActionAt: true,
+        },
+        taskTargets: {
+          __args: { filter: { targetOpportunityId: { eq: opportunityId } } },
+          edges: {
+            node: {
+              task: {
+                id: true,
+                title: true,
+                dueAt: true,
+                status: true,
+              },
+            },
+          },
         },
       });
 
       const found = result?.opportunity;
+      const tasks: LinkedTask[] = [];
+      for (const { node } of result?.taskTargets?.edges ?? []) {
+        const task = node.task;
+        if (task?.id) {
+          tasks.push({
+            id: task.id,
+            title: task.title ?? null,
+            dueAt: task.dueAt ?? null,
+            status: task.status ?? null,
+          });
+        }
+      }
       setRecord({
         eventProcessStage: found?.eventProcessStage ?? null,
         eventCurrentSituation: found?.eventCurrentSituation ?? null,
         eventCurrentPending: found?.eventCurrentPending ?? null,
+        eventNextAction: found?.eventNextAction ?? null,
+        eventNextActionAt: found?.eventNextActionAt ?? null,
+        tasks,
       });
     } catch {
       setError(true);
@@ -306,6 +413,169 @@ const StatusNow = () => {
     }
   };
 
+  const createLinkedTask = async (title: string, dueAt: string | null) => {
+    if (!opportunityId) {
+      throw new Error('Opportunity not found');
+    }
+
+    const client = new CoreApiClient();
+    const taskResult = await client.mutation({
+      createTask: {
+        __args: { data: { title, dueAt, status: 'TODO' } },
+        id: true,
+        title: true,
+        dueAt: true,
+        status: true,
+      },
+    });
+    const task = taskResult.createTask as LinkedTask | undefined;
+
+    if (!task?.id) {
+      throw new Error('Task creation did not return a record');
+    }
+
+    const targetResult = await client.mutation({
+      createTaskTarget: {
+        __args: {
+          data: { taskId: task.id, targetOpportunityId: opportunityId },
+        },
+        id: true,
+      },
+    });
+
+    if (!targetResult.createTaskTarget?.id) {
+      throw new Error('Task link creation did not return a record');
+    }
+
+    setRecord((currentRecord) =>
+      currentRecord
+        ? { ...currentRecord, tasks: [...currentRecord.tasks, task] }
+        : currentRecord,
+    );
+
+    return task;
+  };
+
+  const getOrCreateNextTask = async () => {
+    const legacyNextAction = record?.eventNextAction?.trim();
+    const nextTask = record
+      ? legacyNextAction
+        ? getNextOpenTaskWithTitle(record.tasks, legacyNextAction)
+        : getNextOpenTask(record.tasks)
+      : undefined;
+
+    if (nextTask) {
+      return nextTask;
+    }
+
+    if (
+      !legacyNextAction ||
+      (record && hasLinkedTaskWithTitle(record.tasks, legacyNextAction))
+    ) {
+      throw new Error('Não existe uma próxima ação para atualizar.');
+    }
+
+    return createLinkedTask(
+      legacyNextAction,
+      record?.eventNextActionAt ?? null,
+    );
+  };
+
+  const updateTask = async (
+    id: string,
+    data: { dueAt?: string; status?: 'DONE' },
+  ) => {
+    const result = await new CoreApiClient().mutation({
+      updateTask: {
+        __args: { id, data },
+        id: true,
+      },
+    });
+
+    if (!result.updateTask?.id) {
+      throw new Error('Task update did not return a record');
+    }
+  };
+
+  const completeNextAction = async () => {
+    if (isUpdatingNextAction) {
+      return;
+    }
+
+    setIsUpdatingNextAction(true);
+    try {
+      const task = await getOrCreateNextTask();
+      await updateTask(task.id, { status: 'DONE' });
+
+      setRecord((currentRecord) =>
+        currentRecord
+          ? {
+              ...currentRecord,
+              eventNextAction: null,
+              eventNextActionAt: null,
+              tasks: currentRecord.tasks.map((currentTask) =>
+                currentTask.id === task.id
+                  ? { ...currentTask, status: 'DONE' }
+                  : currentTask,
+              ),
+            }
+          : currentRecord,
+      );
+    } catch (updateError) {
+      await enqueueSnackbar({
+        message:
+          updateError instanceof Error
+            ? updateError.message
+            : t('Não foi possível concluir a próxima ação. Tente novamente.'),
+        variant: 'error',
+      });
+    } finally {
+      setIsUpdatingNextAction(false);
+    }
+  };
+
+  const saveReschedule = async () => {
+    if (!rescheduleValue || isUpdatingNextAction) {
+      return;
+    }
+
+    const dueAt = fromDateTimeLocalValue(rescheduleValue);
+
+    if (!dueAt) {
+      return;
+    }
+
+    setIsUpdatingNextAction(true);
+    try {
+      const task = await getOrCreateNextTask();
+      await updateTask(task.id, { dueAt });
+
+      setRecord((currentRecord) =>
+        currentRecord
+          ? {
+              ...currentRecord,
+              tasks: currentRecord.tasks.map((currentTask) =>
+                currentTask.id === task.id
+                  ? { ...currentTask, dueAt }
+                  : currentTask,
+              ),
+            }
+          : currentRecord,
+      );
+      setRescheduleValue(null);
+    } catch (updateError) {
+      await enqueueSnackbar({
+        message:
+          updateError instanceof Error
+            ? updateError.message
+            : t('Não foi possível reagendar a próxima ação. Tente novamente.'),
+        variant: 'error',
+      });
+    } finally {
+      setIsUpdatingNextAction(false);
+    }
+  };
+
   if (!opportunityId || loading) {
     return null;
   }
@@ -319,6 +589,20 @@ const StatusNow = () => {
   }
 
   const currentPending = record.eventCurrentPending?.trim();
+  const legacyNextAction = record.eventNextAction?.trim();
+  const nextTask = legacyNextAction
+    ? getNextOpenTaskWithTitle(record.tasks, legacyNextAction)
+    : getNextOpenTask(record.tasks);
+  const canCreateLegacyTask =
+    legacyNextAction !== undefined &&
+    legacyNextAction !== '' &&
+    !hasLinkedTaskWithTitle(record.tasks, legacyNextAction);
+  const nextActionTitle =
+    nextTask?.title?.trim() ||
+    (canCreateLegacyTask ? legacyNextAction : undefined);
+  const nextActionAt =
+    nextTask?.dueAt ??
+    (canCreateLegacyTask ? record.eventNextActionAt : null);
 
   return (
     <div style={styles.shell}>
@@ -329,6 +613,70 @@ const StatusNow = () => {
       <div style={styles.row}>
         <span style={styles.fieldLabel}>Situação atual</span>
         <SituationChip value={record.eventCurrentSituation} />
+      </div>
+      <div style={styles.nextAction}>
+        <span style={styles.fieldLabel}>Próxima ação</span>
+        {nextActionTitle ? (
+          <>
+            <div style={styles.nextActionDetails}>
+              <span style={styles.nextActionTitle}>{nextActionTitle}</span>
+              <span style={styles.nextActionDate}>{formatDateTime(nextActionAt)}</span>
+            </div>
+            {rescheduleValue === null ? (
+              <div style={styles.actionControls}>
+                <button
+                  type="button"
+                  style={{ ...styles.actionButton, ...styles.completeButton }}
+                  onClick={() => void completeNextAction()}
+                  disabled={isUpdatingNextAction}
+                >
+                  {isUpdatingNextAction ? <Trans>Salvando…</Trans> : <Trans>Concluir</Trans>}
+                </button>
+                <button
+                  type="button"
+                  style={styles.actionButton}
+                  onClick={() =>
+                    setRescheduleValue(
+                      toDateTimeLocalValue(nextActionAt ?? new Date().toISOString()),
+                    )
+                  }
+                  disabled={isUpdatingNextAction}
+                >
+                  <Trans>Reagendar</Trans>
+                </button>
+              </div>
+            ) : (
+              <div style={styles.actionControls}>
+                <input
+                  type="datetime-local"
+                  aria-label="Nova data e hora da próxima ação"
+                  style={styles.dateTimeInput}
+                  value={rescheduleValue}
+                  onChange={(event) => setRescheduleValue(event.target.value)}
+                  disabled={isUpdatingNextAction}
+                />
+                <button
+                  type="button"
+                  style={styles.actionButton}
+                  onClick={() => void saveReschedule()}
+                  disabled={isUpdatingNextAction || !rescheduleValue}
+                >
+                  {isUpdatingNextAction ? <Trans>Salvando…</Trans> : <Trans>Salvar</Trans>}
+                </button>
+                <button
+                  type="button"
+                  style={styles.actionButton}
+                  onClick={() => setRescheduleValue(null)}
+                  disabled={isUpdatingNextAction}
+                >
+                  <Trans>Cancelar</Trans>
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <span style={styles.empty}>Sem próxima ação registrada</span>
+        )}
       </div>
       {currentPending ? (
         <div style={styles.pendingAlert} role="alert">
