@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useState } from 'react';
+import { Fragment, type CSSProperties, useCallback, useEffect, useState } from 'react';
 import { CoreApiClient } from 'twenty-client-sdk/core';
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { useFrontComponentExecutionContext } from 'twenty-sdk/front-component';
@@ -49,9 +49,11 @@ const styles: Record<string, CSSProperties> = {
     fontSize: theme.sizeXs,
     fontWeight: 500,
   },
-  stepper: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0 },
-  step: { display: 'flex', alignItems: 'center' },
-  connector: { width: '20px', height: '2px', flexShrink: 0 },
+  section: { display: 'flex', flexDirection: 'column', gap: theme.spacing1 },
+  stepperColumn: { display: 'flex', flexDirection: 'column', gap: theme.spacing1 },
+  stepperRow: { display: 'flex', alignItems: 'center', width: '100%' },
+  connector: { flex: 1, height: '2px', minWidth: theme.spacing2 },
+  currentStepLabel: { fontSize: theme.sizeXs, fontWeight: 600 },
   empty: { color: theme.fontTertiary, fontSize: theme.sizeXs },
 };
 
@@ -88,35 +90,79 @@ const chipStyle = (color: string, status: StepStatus): CSSProperties =>
         whiteSpace: 'nowrap',
       };
 
+// A dot per step (not the full label) so the row never wraps in the narrow
+// side panel — labels are long ("5. Produção / formalização / evento") and
+// five of them side by side don't fit. The current step's label is shown
+// separately, on its own line, instead of on every dot.
+const dotStyle = (color: string, status: StepStatus): CSSProperties => {
+  if (status === 'upcoming') {
+    return {
+      width: '10px',
+      height: '10px',
+      borderRadius: '50%',
+      flexShrink: 0,
+      border: `2px solid ${theme.border}`,
+      background: theme.backgroundPrimary,
+    };
+  }
+
+  if (status === 'current') {
+    return {
+      width: '12px',
+      height: '12px',
+      borderRadius: '50%',
+      flexShrink: 0,
+      background: `var(--t-tag-text-${color})`,
+      boxShadow: `0 0 0 3px var(--t-tag-background-${color})`,
+    };
+  }
+
+  return {
+    width: '10px',
+    height: '10px',
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: `var(--t-tag-text-${color})`,
+  };
+};
+
 const Stepper = ({ currentValue }: { currentValue: string | null }) => {
   const currentIndex = FUNNEL_STEPS.findIndex(
     (step) => step.value === currentValue,
   );
+  const currentStep = currentIndex === -1 ? null : FUNNEL_STEPS[currentIndex];
 
   return (
-    <div style={styles.stepper}>
-      {FUNNEL_STEPS.map((step, index) => {
-        const status = getStepStatus(index, currentIndex);
-        return (
-          <div key={step.value} style={styles.step}>
-            <span style={chipStyle(step.color, status)}>
-              {status === 'completed' ? '✓ ' : ''}
-              {step.label}
-            </span>
-            {index < FUNNEL_STEPS.length - 1 ? (
-              <span
-                style={{
-                  ...styles.connector,
-                  background:
-                    status === 'completed'
-                      ? `var(--t-tag-text-${step.color})`
-                      : theme.border,
-                }}
-              />
-            ) : null}
-          </div>
-        );
-      })}
+    <div style={styles.stepperColumn}>
+      <div style={styles.stepperRow}>
+        {FUNNEL_STEPS.map((step, index) => {
+          const status = getStepStatus(index, currentIndex);
+          return (
+            <Fragment key={step.value}>
+              <span title={step.label} style={dotStyle(step.color, status)} />
+              {index < FUNNEL_STEPS.length - 1 ? (
+                <span
+                  style={{
+                    ...styles.connector,
+                    background:
+                      status === 'completed'
+                        ? `var(--t-tag-text-${step.color})`
+                        : theme.border,
+                  }}
+                />
+              ) : null}
+            </Fragment>
+          );
+        })}
+      </div>
+      <span
+        style={{
+          ...styles.currentStepLabel,
+          color: currentStep ? `var(--t-tag-text-${currentStep.color})` : theme.fontTertiary,
+        }}
+      >
+        {currentStep ? currentStep.label : 'Etapa não reconhecida'}
+      </span>
     </div>
   );
 };
@@ -195,7 +241,7 @@ const StatusNow = () => {
 
   return (
     <div style={styles.shell}>
-      <div style={styles.row}>
+      <div style={styles.section}>
         <span style={styles.fieldLabel}>Funil GSH</span>
         <Stepper currentValue={record.eventProcessStage} />
       </div>
