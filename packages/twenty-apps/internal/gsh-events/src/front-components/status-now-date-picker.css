@@ -35,6 +35,10 @@
   padding: var(--t-spacing-2) 0;
 }
 
+.gsh-reschedule-calendar .react-datepicker__navigation--next--with-time:not(.react-datepicker__navigation--next--with-today-button) {
+  right: 2px;
+}
+
 .gsh-reschedule-calendar .react-datepicker__current-month,
 .gsh-reschedule-calendar .react-datepicker-time__header,
 .gsh-reschedule-calendar .react-datepicker__day-name,
