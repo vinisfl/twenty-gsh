@@ -1,6 +1,9 @@
 import { HeadlessEngineCommandWrapperEffect } from '@/command-menu-item/engine-command/components/HeadlessEngineCommandWrapperEffect';
 import { useHeadlessCommandContextApi } from '@/command-menu-item/engine-command/hooks/useHeadlessCommandContextApi';
+import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
+import { getShouldBlockOpportunityCreate } from '@/object-record/record-persistence-gate/utils/getShouldBlockOpportunityCreate';
 import { useCreateNewIndexRecord } from '@/object-record/record-table/hooks/useCreateNewIndexRecord';
+import { useAtomValue } from 'jotai';
 import { isDefined } from 'twenty-shared/utils';
 
 export const CreateNewIndexRecordNoSelectionRecordCommand = () => {
@@ -17,9 +20,25 @@ export const CreateNewIndexRecordNoSelectionRecordCommand = () => {
     instanceId: recordIndexId,
   });
 
+  const opportunityCreateGateHandler = useAtomValue(
+    opportunityCreateGateHandlerState,
+  );
+
   return (
     <HeadlessEngineCommandWrapperEffect
-      execute={() => createNewIndexRecord({ position: 'first' })}
+      execute={() => {
+        if (
+          getShouldBlockOpportunityCreate({
+            objectNameSingular: objectMetadataItem.nameSingular,
+            recordInput: {},
+            opportunityCreateGateHandler,
+          })
+        ) {
+          return;
+        }
+
+        return createNewIndexRecord({ position: 'first' });
+      }}
     />
   );
 };
