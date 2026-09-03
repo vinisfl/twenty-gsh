@@ -1,7 +1,12 @@
 import { Fragment, type CSSProperties, useCallback, useEffect, useState } from 'react';
 import { CoreApiClient } from 'twenty-client-sdk/core';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { useFrontComponentExecutionContext } from 'twenty-sdk/front-component';
+import {
+  Trans,
+  enqueueSnackbar,
+  useFrontComponentExecutionContext,
+  useTranslate,
+} from 'twenty-sdk/front-component';
 
 import { STATUS_NOW_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER } from 'src/constants/universal-identifiers';
 import {
@@ -55,6 +60,39 @@ const styles: Record<string, CSSProperties> = {
   connector: { flex: 1, height: '2px', minWidth: theme.spacing2 },
   currentStepLabel: { fontSize: theme.sizeXs, fontWeight: 600 },
   empty: { color: theme.fontTertiary, fontSize: theme.sizeXs },
+  pendingAlert: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing3,
+    padding: theme.spacing3,
+    border: '1px solid var(--t-tag-text-orange)',
+    borderRadius: 'var(--t-border-radius-sm)',
+    background: 'var(--t-tag-background-orange)',
+  },
+  pendingContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing1,
+    minWidth: 0,
+  },
+  pendingText: {
+    color: 'var(--t-tag-text-orange)',
+    fontWeight: 500,
+    overflowWrap: 'anywhere',
+  },
+  resolveButton: {
+    flexShrink: 0,
+    padding: `${theme.spacing1} ${theme.spacing2}`,
+    border: '1px solid var(--t-tag-text-orange)',
+    borderRadius: 'var(--t-border-radius-sm)',
+    background: theme.backgroundPrimary,
+    color: 'var(--t-tag-text-orange)',
+    fontFamily: theme.fontFamily,
+    fontSize: theme.sizeXs,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
 };
 
 type StageOption = (typeof EVENT_PROCESS_STAGE_OPTIONS)[number];
@@ -182,9 +220,11 @@ const SituationChip = ({ value }: { value: string | null }) => {
 type OpportunityStatusRecord = {
   eventProcessStage: string | null;
   eventCurrentSituation: string | null;
+  eventCurrentPending: string | null;
 };
 
 const StatusNow = () => {
+  const { t } = useTranslate();
   const opportunityId = useFrontComponentExecutionContext((context) =>
     context.recordId ??
     (context.selectedRecordIds.length === 1
@@ -194,6 +234,7 @@ const StatusNow = () => {
   const [record, setRecord] = useState<OpportunityStatusRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [isResolvingPending, setIsResolvingPending] = useState(false);
 
   const load = useCallback(async () => {
     if (!opportunityId) {
@@ -209,6 +250,7 @@ const StatusNow = () => {
           __args: { filter: { id: { eq: opportunityId } } },
           eventProcessStage: true,
           eventCurrentSituation: true,
+          eventCurrentPending: true,
         },
       });
 
@@ -216,6 +258,7 @@ const StatusNow = () => {
       setRecord({
         eventProcessStage: found?.eventProcessStage ?? null,
         eventCurrentSituation: found?.eventCurrentSituation ?? null,
+        eventCurrentPending: found?.eventCurrentPending ?? null,
       });
     } catch {
       setError(true);
@@ -226,6 +269,42 @@ const StatusNow = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const resolveCurrentPending = async () => {
+    if (!opportunityId || isResolvingPending) {
+      return;
+    }
+
+    setIsResolvingPending(true);
+    try {
+      const result = await new CoreApiClient().mutation({
+        updateOpportunity: {
+          __args: {
+            id: opportunityId,
+            data: { eventCurrentPending: null },
+          },
+          id: true,
+        },
+      });
+
+      if (!result.updateOpportunity?.id) {
+        throw new Error('Opportunity update did not return a record');
+      }
+
+      setRecord((currentRecord) =>
+        currentRecord
+          ? { ...currentRecord, eventCurrentPending: null }
+          : currentRecord,
+      );
+    } catch {
+      await enqueueSnackbar({
+        message: t('Não foi possível resolver a pendência. Tente novamente.'),
+        variant: 'error',
+      });
+    } finally {
+      setIsResolvingPending(false);
+    }
+  };
 
   if (!opportunityId || loading) {
     return null;
@@ -239,6 +318,8 @@ const StatusNow = () => {
     );
   }
 
+  const currentPending = record.eventCurrentPending?.trim();
+
   return (
     <div style={styles.shell}>
       <div style={styles.section}>
@@ -249,6 +330,24 @@ const StatusNow = () => {
         <span style={styles.fieldLabel}>Situação atual</span>
         <SituationChip value={record.eventCurrentSituation} />
       </div>
+      {currentPending ? (
+        <div style={styles.pendingAlert} role="alert">
+          <div style={styles.pendingContent}>
+            <span style={styles.fieldLabel}>
+              <Trans>Pendência atual</Trans>
+            </span>
+            <span style={styles.pendingText}>{currentPending}</span>
+          </div>
+          <button
+            type="button"
+            style={styles.resolveButton}
+            onClick={() => void resolveCurrentPending()}
+            disabled={isResolvingPending}
+          >
+            {isResolvingPending ? <Trans>Resolvendo…</Trans> : <Trans>Resolver</Trans>}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 };
