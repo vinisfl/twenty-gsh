@@ -21,12 +21,14 @@ import {
   hasLinkedTaskWithTitle,
   type LinkedTask,
 } from 'src/front-components/utils/get-next-open-task.util';
+import { ensureResizeObserver } from 'src/front-components/utils/ensure-resize-observer.util';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
 
 import 'react-datepicker/dist/react-datepicker.css';
 import './status-now-date-picker.css';
 
+ensureResizeObserver();
 registerLocale('pt-BR', ptBR);
 
 const theme = {
