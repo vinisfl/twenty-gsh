@@ -76,7 +76,10 @@ export const FieldsWidget = ({ widget }: FieldsWidgetProps) => {
     objectNameSingular: targetRecord.targetObjectNameSingular,
   });
 
-  const groupStageStatusByGroupId = useFieldsWidgetGroupStageStatuses({
+  const {
+    isActive: isGroupStageSyncActive,
+    statusByGroupId: groupStageStatusByGroupId,
+  } = useFieldsWidgetGroupStageStatuses({
     recordId: targetRecord.id,
     objectNameSingular: targetRecord.targetObjectNameSingular,
     groups,
@@ -150,7 +153,7 @@ export const FieldsWidget = ({ widget }: FieldsWidgetProps) => {
                   key={group.id}
                   title={group.name}
                   defaultExpanded={
-                    stageStatus === undefined ? true : stageStatus === 'current'
+                    !isGroupStageSyncActive || stageStatus === 'current'
                   }
                   isCompleted={stageStatus === 'completed'}
                 >

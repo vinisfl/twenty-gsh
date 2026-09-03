@@ -1,4 +1,5 @@
 import { styled } from '@linaria/react';
+import { t } from '@lingui/core/macro';
 import { useContext, useState } from 'react';
 import { IconCheck, IconChevronDown } from 'twenty-ui/icon';
 import { AnimatedExpandableContainer, Section } from 'twenty-ui/layout';
@@ -63,7 +64,7 @@ export const FieldsWidgetGroupContainer = ({
         <StyledTitleRow>
           <StyledTitleLabel>{title}</StyledTitleLabel>
           {isCompleted && (
-            <StyledCompletedIcon title={title + ' — concluído'}>
+            <StyledCompletedIcon title={t`${title} — Completed`}>
               <IconCheck size={theme.icon.size.sm} />
             </StyledCompletedIcon>
           )}
