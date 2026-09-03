@@ -1,9 +1,27 @@
 .gsh-reschedule-calendar.react-datepicker {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
   background: var(--t-background-primary);
   border: 1px solid var(--t-border-color-medium);
   border-radius: var(--t-border-radius-sm);
   color: var(--t-font-color-primary);
   font-family: var(--t-font-family);
+}
+
+.gsh-reschedule-calendar *,
+.gsh-reschedule-calendar *::before,
+.gsh-reschedule-calendar *::after {
+  box-sizing: border-box;
+}
+
+.gsh-reschedule-calendar .react-datepicker__month-container {
+  float: none;
+  width: 100%;
+  min-width: 0;
 }
 
 .gsh-reschedule-calendar .react-datepicker__header,
@@ -13,12 +31,63 @@
   border-color: var(--t-border-color-light);
 }
 
+.gsh-reschedule-calendar .react-datepicker__header {
+  padding: var(--t-spacing-2) 0;
+}
+
 .gsh-reschedule-calendar .react-datepicker__current-month,
 .gsh-reschedule-calendar .react-datepicker-time__header,
 .gsh-reschedule-calendar .react-datepicker__day-name,
 .gsh-reschedule-calendar .react-datepicker__day,
 .gsh-reschedule-calendar .react-datepicker__time-list-item {
   color: var(--t-font-color-primary);
+}
+
+.gsh-reschedule-calendar .react-datepicker__month {
+  margin: var(--t-spacing-2);
+}
+
+.gsh-reschedule-calendar .react-datepicker__day-names,
+.gsh-reschedule-calendar .react-datepicker__week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin: 0;
+}
+
+.gsh-reschedule-calendar .react-datepicker__day-name,
+.gsh-reschedule-calendar .react-datepicker__day {
+  width: auto;
+  margin: 0;
+  line-height: 2.25em;
+}
+
+.gsh-reschedule-calendar .react-datepicker__time-container {
+  float: none;
+  width: 100%;
+  border-top: 1px solid var(--t-border-color-light);
+  border-left: 0;
+}
+
+.gsh-reschedule-calendar .react-datepicker__time,
+.gsh-reschedule-calendar .react-datepicker__time-box {
+  width: 100% !important;
+  border-radius: 0;
+}
+
+.gsh-reschedule-calendar .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  height: 132px !important;
+  margin: 0;
+  overflow-y: auto;
+  padding: var(--t-spacing-1);
+}
+
+.gsh-reschedule-calendar .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item {
+  height: auto;
+  min-height: 32px;
+  padding: var(--t-spacing-1);
+  line-height: 1.25;
 }
 
 .gsh-reschedule-calendar .react-datepicker__day:hover,
@@ -31,4 +100,16 @@
 .gsh-reschedule-calendar .react-datepicker__time-list-item--selected {
   background: var(--t-color-blue);
   color: var(--t-white);
+}
+
+@media (max-width: 360px) {
+  .gsh-reschedule-calendar .react-datepicker__month {
+    margin: var(--t-spacing-1);
+  }
+
+  .gsh-reschedule-calendar .react-datepicker__day-name,
+  .gsh-reschedule-calendar .react-datepicker__day {
+    font-size: var(--t-font-size-xs);
+    line-height: 2.5em;
+  }
 }

@@ -118,6 +118,14 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
     gap: theme.spacing2,
   },
+  rescheduleControls: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: theme.spacing2,
+    width: '100%',
+    minWidth: 0,
+  },
   actionButton: {
     padding: `${theme.spacing1} ${theme.spacing2}`,
     border: `1px solid ${theme.border}`,
@@ -706,7 +714,7 @@ const StatusNow = () => {
                 </button>
               </div>
             ) : (
-              <div style={styles.actionControls}>
+              <div style={styles.rescheduleControls}>
                 <DatePicker
                   selected={rescheduleValue}
                   onChange={(date: Date | null) => setRescheduleValue(date)}
@@ -720,22 +728,24 @@ const StatusNow = () => {
                   calendarClassName="gsh-reschedule-calendar"
                   disabled={isUpdatingNextAction}
                 />
-                <button
-                  type="button"
-                  style={styles.actionButton}
-                  onClick={() => void saveReschedule()}
-                  disabled={isUpdatingNextAction || !rescheduleValue}
-                >
-                  {isUpdatingNextAction ? <Trans>Salvando…</Trans> : <Trans>Salvar</Trans>}
-                </button>
-                <button
-                  type="button"
-                  style={styles.actionButton}
-                  onClick={() => setRescheduleValue(null)}
-                  disabled={isUpdatingNextAction}
-                >
-                  <Trans>Cancelar</Trans>
-                </button>
+                <div style={styles.actionControls}>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => void saveReschedule()}
+                    disabled={isUpdatingNextAction || !rescheduleValue}
+                  >
+                    {isUpdatingNextAction ? <Trans>Salvando…</Trans> : <Trans>Salvar</Trans>}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => setRescheduleValue(null)}
+                    disabled={isUpdatingNextAction}
+                  >
+                    <Trans>Cancelar</Trans>
+                  </button>
+                </div>
               </div>
             )}
           </>
