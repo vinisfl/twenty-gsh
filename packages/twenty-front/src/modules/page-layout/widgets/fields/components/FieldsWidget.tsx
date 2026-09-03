@@ -7,6 +7,7 @@ import { FieldsWidgetCellEditModePortal } from '@/page-layout/widgets/fields/com
 import { FieldsWidgetCellHoveredPortal } from '@/page-layout/widgets/fields/components/FieldsWidgetCellHoveredPortal';
 import { FieldsWidgetFieldList } from '@/page-layout/widgets/fields/components/FieldsWidgetFieldList';
 import { FieldsWidgetGroupContainer } from '@/page-layout/widgets/fields/components/FieldsWidgetGroupContainer';
+import { useFieldsWidgetGroupStageStatuses } from '@/page-layout/widgets/fields/hooks/useFieldsWidgetGroupStageStatuses';
 import { useFieldsWidgetGroupsForDisplay } from '@/page-layout/widgets/fields/hooks/useFieldsWidgetGroupsForDisplay';
 import { useFieldsWidgetHiddenFieldsForDisplay } from '@/page-layout/widgets/fields/hooks/useFieldsWidgetHiddenFieldsForDisplay';
 import { useLayoutRenderingContext } from '@/ui/layout/contexts/LayoutRenderingContext';
@@ -75,6 +76,12 @@ export const FieldsWidget = ({ widget }: FieldsWidgetProps) => {
     objectNameSingular: targetRecord.targetObjectNameSingular,
   });
 
+  const groupStageStatusByGroupId = useFieldsWidgetGroupStageStatuses({
+    recordId: targetRecord.id,
+    objectNameSingular: targetRecord.targetObjectNameSingular,
+    groups,
+  });
+
   const shouldShowHiddenFields =
     fieldsConfiguration.shouldAllowUserToSeeHiddenFields === true &&
     hiddenFields.length > 0;
@@ -135,16 +142,27 @@ export const FieldsWidget = ({ widget }: FieldsWidgetProps) => {
               />
             </StyledInlineFieldsPropertyBox>
           ) : (
-            groups.map((group) => (
-              <FieldsWidgetGroupContainer key={group.id} title={group.name}>
-                <StyledPropertyBox>
-                  <FieldsWidgetFieldList
-                    fields={group.fields}
-                    instanceId={instanceId}
-                  />
-                </StyledPropertyBox>
-              </FieldsWidgetGroupContainer>
-            ))
+            groups.map((group) => {
+              const stageStatus = groupStageStatusByGroupId[group.id];
+
+              return (
+                <FieldsWidgetGroupContainer
+                  key={group.id}
+                  title={group.name}
+                  defaultExpanded={
+                    stageStatus === undefined ? true : stageStatus === 'current'
+                  }
+                  isCompleted={stageStatus === 'completed'}
+                >
+                  <StyledPropertyBox>
+                    <FieldsWidgetFieldList
+                      fields={group.fields}
+                      instanceId={instanceId}
+                    />
+                  </StyledPropertyBox>
+                </FieldsWidgetGroupContainer>
+              );
+            })
           )}
 
           {shouldShowHiddenFields && (

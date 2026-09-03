@@ -1,0 +1,1 @@
+export const OPPORTUNITY_FUNNEL_GROUP_SYNC_OBJECT_NAME_SINGULAR = 'opportunity';
