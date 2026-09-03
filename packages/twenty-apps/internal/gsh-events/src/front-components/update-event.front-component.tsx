@@ -303,6 +303,7 @@ const UpdateEvent = () => {
   };
 
   const stage = form.opportunity.stage;
+  const stageLabel = stageOptions.find((option) => option.value === stage)?.label ?? '—';
 
   return (
     <div style={styles.shell}>
@@ -314,7 +315,7 @@ const UpdateEvent = () => {
         <details open style={styles.section}>
           <summary style={styles.summary}>Agora: etapa, pendência e próxima ação</summary>
           <div style={styles.grid}>
-            <Field label="Etapa do funil"><Select value={stage} options={stageOptions} onChange={(value) => setOpportunity('stage', value)} /></Field>
+            <Field label="Etapa do funil"><TextInput value={stageLabel} onChange={() => {}} disabled /></Field>
             <Field label="Situação atual"><Select value={form.opportunity.currentSituation} onChange={(value) => setOpportunity('currentSituation', value)} options={[
               { value: EVENT_CURRENT_SITUATION.PREPARE_OS, label: 'Preparar OS' },
               { value: EVENT_CURRENT_SITUATION.FORMALIZATION_IN_PROGRESS, label: 'Formalização em andamento' },
