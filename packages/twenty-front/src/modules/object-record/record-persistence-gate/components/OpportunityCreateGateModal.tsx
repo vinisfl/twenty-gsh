@@ -11,6 +11,7 @@ import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
+import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { GSH_EVENT_FUNNEL_CORPORATE_EVENT } from '@/object-record/record-persistence-gate/constants/GshEventFunnelCorporateEvent';
 import { GSH_EVENT_INITIAL_CONTACT_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshEventInitialContactTaskTitle';
@@ -19,8 +20,9 @@ import { GSH_EVENT_SOURCE_OPTIONS } from '@/object-record/record-persistence-gat
 import { OPPORTUNITY_CREATE_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityCreateGateModalId';
 import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
 import { opportunityCreateGatePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityCreateGatePendingRequestState';
+import { fromDateTimeLocalInputValue } from '@/object-record/record-persistence-gate/utils/fromDateTimeLocalInputValue';
 import { getNextBusinessDayIso } from '@/object-record/record-persistence-gate/utils/getNextBusinessDayIso';
-import { FormDateTimeFieldInput } from '@/object-record/record-field/ui/form-types/components/FormDateTimeFieldInput';
+import { toDateTimeLocalInputValue } from '@/object-record/record-persistence-gate/utils/toDateTimeLocalInputValue';
 import { FormSingleRecordPicker } from '@/object-record/record-field/ui/form-types/components/FormSingleRecordPicker';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { useUserTimezone } from '@/ui/input/components/internal/date/hooks/useUserTimezone';
@@ -29,6 +31,7 @@ import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { ModalStatefulWrapper } from '@/ui/layout/modal/components/ModalStatefulWrapper';
 import { useModal } from '@/ui/layout/modal/hooks/useModal';
+import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 
 const StyledCenteredTitle = styled.div`
@@ -60,7 +63,31 @@ const StyledModalActions = styled.div`
 // and useRecordBoardDndKit (see ADR-0001). This component registers the app's
 // blocking create handler and renders the modal itself, since the sandboxed
 // twenty-sdk app can't reach opportunityCreateGateHandlerState.
+//
+// Mounted once, always, at the workspace app shell level (WorkspaceAppProviders),
+// which sits above the metadata-readiness gate the rest of the routed app relies
+// on (MinimalMetadataGate). useCreateOneRecord throws if object metadata for its
+// object isn't loaded yet, so this outer component defers rendering the part of
+// the tree that calls it until the Opportunity object metadata item itself is
+// available (checked directly, rather than via isMinimalMetadataReadyState,
+// which can report ready before this specific selector has caught up).
 export const OpportunityCreateGateModal = () => {
+  const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
+    objectMetadataItemFamilySelector,
+    {
+      objectName: CoreObjectNameSingular.Opportunity,
+      objectNameType: 'singular',
+    },
+  );
+
+  if (!isDefined(opportunityObjectMetadataItem)) {
+    return null;
+  }
+
+  return <OpportunityCreateGateModalContent />;
+};
+
+const OpportunityCreateGateModalContent = () => {
   const setOpportunityCreateGateHandler = useSetAtom(
     opportunityCreateGateHandlerState,
   );
@@ -253,6 +280,7 @@ export const OpportunityCreateGateModal = () => {
           onChange={(value) => setCompanyId((value as string | null) ?? null)}
           onCreate={handleCreateCompany}
           objectNameSingulars={[CoreObjectNameSingular.Company]}
+          isDropdownInModal
           testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-company`}
         />
 
@@ -266,11 +294,13 @@ export const OpportunityCreateGateModal = () => {
           fullWidth
         />
 
-        <FormDateTimeFieldInput
+        <SettingsTextInput
+          instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-at`}
           label="Data prevista do evento"
-          defaultValue={eventAt ?? undefined}
-          onChange={setEventAt}
-          timeZone={userTimezone}
+          type="datetime-local"
+          value={toDateTimeLocalInputValue(eventAt)}
+          onChange={(value) => setEventAt(fromDateTimeLocalInputValue(value))}
+          fullWidth
         />
 
         <SettingsTextInput

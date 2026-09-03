@@ -78,6 +78,7 @@ export type FormSingleRecordPickerProps = {
   testId?: string;
   VariablePicker?: VariablePickerComponent;
   shouldDisplayRecordFieldsInVariablePicker?: boolean;
+  isDropdownInModal?: boolean;
 };
 
 export const FormSingleRecordPicker = ({
@@ -93,6 +94,7 @@ export const FormSingleRecordPicker = ({
   testId,
   VariablePicker,
   shouldDisplayRecordFieldsInVariablePicker = false,
+  isDropdownInModal = false,
 }: FormSingleRecordPickerProps) => {
   const { theme } = useContext(ThemeContext);
 
@@ -222,6 +224,7 @@ export const FormSingleRecordPicker = ({
               clickableComponentWidth="100%"
               onClose={handleCloseRelationPickerDropdown}
               onOpen={handleOpenDropdown}
+              isDropdownInModal={isDropdownInModal}
               dropdownOffset={{
                 y: parseInt(theme.spacing[1], 10),
               }}

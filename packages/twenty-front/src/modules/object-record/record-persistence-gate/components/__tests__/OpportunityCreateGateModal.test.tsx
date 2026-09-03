@@ -6,6 +6,7 @@ import { OpportunityCreateGateModal } from '@/object-record/record-persistence-g
 import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
 import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import { getJestMetadataAndApolloMocksWrapper } from '~/testing/jest/getJestMetadataAndApolloMocksWrapper';
+import { getTestEnrichedObjectMetadataItemsMock } from '~/testing/utils/getTestEnrichedObjectMetadataItemsMock';
 
 const mockCreateOpportunity = jest.fn();
 const mockCreateCompany = jest.fn();
@@ -79,24 +80,6 @@ jest.mock('@/ui/input/components/Select', () => ({
   ),
 }));
 
-jest.mock(
-  '@/object-record/record-field/ui/form-types/components/FormDateTimeFieldInput',
-  () => ({
-    FormDateTimeFieldInput: ({
-      onChange,
-    }: {
-      onChange: (value: string) => void;
-    }) => (
-      <button
-        data-testid="opportunity-create-gate-modal-event-at"
-        onClick={() => onChange('2026-09-10T00:00:00.000Z')}
-      >
-        pick date
-      </button>
-    ),
-  }),
-);
-
 const Wrapper = getJestMetadataAndApolloMocksWrapper({ apolloMocks: [] });
 
 const fillRequiredFields = () => {
@@ -108,7 +91,9 @@ const fillRequiredFields = () => {
     screen.getByTestId('opportunity-create-gate-modal-modality'),
     { target: { value: 'INTERNAL' } },
   );
-  fireEvent.click(screen.getByTestId('opportunity-create-gate-modal-event-at'));
+  fireEvent.change(screen.getByLabelText('Data prevista do evento'), {
+    target: { value: '2026-09-10T14:30' },
+  });
   fireEvent.change(screen.getByLabelText('Valor estimado (R$)'), {
     target: { value: '5000' },
   });
@@ -127,6 +112,23 @@ describe('OpportunityCreateGateModal', () => {
     mockCreateCompany.mockResolvedValue({ id: 'company-1' });
     mockCreateTask.mockResolvedValue({ id: 'task-1' });
     mockCreateTaskTarget.mockResolvedValue({ id: 'task-target-1' });
+  });
+
+  it('renders nothing until the Opportunity object metadata item is available', () => {
+    const WrapperWithoutMetadata = getJestMetadataAndApolloMocksWrapper({
+      apolloMocks: [],
+      objectMetadataItems: getTestEnrichedObjectMetadataItemsMock().filter(
+        (item) => item.nameSingular !== CoreObjectNameSingular.Opportunity,
+      ),
+    });
+
+    render(<OpportunityCreateGateModal />, {
+      wrapper: WrapperWithoutMetadata,
+    });
+
+    const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+
+    expect(handler).toBeUndefined();
   });
 
   it('registers a handler that always blocks native creation, without creating anything by itself', () => {
@@ -179,7 +181,7 @@ describe('OpportunityCreateGateModal', () => {
         name: 'Confraternização de fim de ano',
         companyId: 'company-1',
         eventModality: 'INTERNAL',
-        eventAt: '2026-09-10T00:00:00.000Z',
+        eventAt: new Date('2026-09-10T14:30').toISOString(),
         amount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
         eventSource: 'WHATSAPP',
         ownerId: 'workspace-member-1',
