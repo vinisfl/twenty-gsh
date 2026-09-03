@@ -10,6 +10,7 @@ import { getTestEnrichedObjectMetadataItemsMock } from '~/testing/utils/getTestE
 
 const mockCreateOpportunity = jest.fn();
 const mockCreateCompany = jest.fn();
+const mockCreatePerson = jest.fn();
 const mockCreateTask = jest.fn();
 const mockCreateTaskTarget = jest.fn();
 
@@ -24,6 +25,8 @@ jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
         return { createOneRecord: mockCreateOpportunity };
       case CoreObjectNameSingular.Company:
         return { createOneRecord: mockCreateCompany };
+      case CoreObjectNameSingular.Person:
+        return { createOneRecord: mockCreatePerson };
       case CoreObjectNameSingular.Task:
         return { createOneRecord: mockCreateTask };
       case CoreObjectNameSingular.TaskTarget:
@@ -36,6 +39,11 @@ jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
   },
 }));
 
+const PICKED_RECORD_ID_BY_TEST_ID: Record<string, string> = {
+  'opportunity-create-gate-modal-company': 'company-1',
+  'opportunity-create-gate-modal-person': 'person-1',
+};
+
 jest.mock(
   '@/object-record/record-field/ui/form-types/components/FormSingleRecordPicker',
   () => ({
@@ -44,10 +52,13 @@ jest.mock(
       testId,
     }: {
       onChange: (value: string) => void;
-      testId?: string;
+      testId: string;
     }) => (
-      <button data-testid={testId} onClick={() => onChange('company-1')}>
-        pick company
+      <button
+        data-testid={testId}
+        onClick={() => onChange(PICKED_RECORD_ID_BY_TEST_ID[testId])}
+      >
+        pick record
       </button>
     ),
   }),
@@ -110,6 +121,7 @@ describe('OpportunityCreateGateModal', () => {
     } as never);
     mockCreateOpportunity.mockResolvedValue({ id: 'opportunity-1' });
     mockCreateCompany.mockResolvedValue({ id: 'company-1' });
+    mockCreatePerson.mockResolvedValue({ id: 'person-1' });
     mockCreateTask.mockResolvedValue({ id: 'task-1' });
     mockCreateTaskTarget.mockResolvedValue({ id: 'task-target-1' });
   });
@@ -180,6 +192,7 @@ describe('OpportunityCreateGateModal', () => {
         eventProcessStage: 'ENTRY',
         name: 'Confraternização de fim de ano',
         companyId: 'company-1',
+        pointOfContactId: null,
         eventModality: 'INTERNAL',
         eventAt: new Date('2026-09-10T14:30').toISOString(),
         amount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
@@ -200,6 +213,26 @@ describe('OpportunityCreateGateModal', () => {
       taskId: 'task-1',
       targetOpportunityId: 'opportunity-1',
     });
+  });
+
+  it('includes the picked contact as the point of contact when one is selected', async () => {
+    render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+    const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+    act(() => {
+      handler?.({ recordInput: {} });
+    });
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByTestId('opportunity-create-gate-modal-person'));
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Criar'));
+    });
+
+    expect(mockCreateOpportunity).toHaveBeenCalledWith(
+      expect.objectContaining({ pointOfContactId: 'person-1' }),
+    );
   });
 
   it('keeps the confirm action disabled until every required field is filled', async () => {

@@ -3,6 +3,7 @@ import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { styled } from '@linaria/react';
 import { Temporal } from 'temporal-polyfill';
+import { v4 } from 'uuid';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { Button } from 'twenty-ui/input';
@@ -11,8 +12,10 @@ import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
+import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
+import { buildRecordLabelPayload } from '@/object-record/utils/buildRecordLabelPayload';
 import { GSH_EVENT_FUNNEL_CORPORATE_EVENT } from '@/object-record/record-persistence-gate/constants/GshEventFunnelCorporateEvent';
 import { GSH_EVENT_INITIAL_CONTACT_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshEventInitialContactTaskTitle';
 import { GSH_EVENT_MODALITY_OPTIONS } from '@/object-record/record-persistence-gate/constants/GshEventModalityOptions';
@@ -107,6 +110,17 @@ const OpportunityCreateGateModalContent = () => {
   const { createOneRecord: createCompany } = useCreateOneRecord({
     objectNameSingular: CoreObjectNameSingular.Company,
   });
+  const { createOneRecord: createPerson } = useCreateOneRecord({
+    objectNameSingular: CoreObjectNameSingular.Person,
+  });
+  const { objectMetadataItem: companyObjectMetadataItem } =
+    useObjectMetadataItem({
+      objectNameSingular: CoreObjectNameSingular.Company,
+    });
+  const { objectMetadataItem: personObjectMetadataItem } =
+    useObjectMetadataItem({
+      objectNameSingular: CoreObjectNameSingular.Person,
+    });
   const { createOneRecord: createTask } = useCreateOneRecord({
     objectNameSingular: CoreObjectNameSingular.Task,
   });
@@ -116,6 +130,7 @@ const OpportunityCreateGateModalContent = () => {
 
   const [name, setName] = useState('');
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [personId, setPersonId] = useState<string | null>(null);
   const [modality, setModality] = useState('');
   const [eventAt, setEventAt] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
@@ -139,6 +154,7 @@ const OpportunityCreateGateModalContent = () => {
   const resetForm = () => {
     setName('');
     setCompanyId(null);
+    setPersonId(null);
     setModality('');
     setEventAt(null);
     setAmount('');
@@ -152,12 +168,32 @@ const OpportunityCreateGateModalContent = () => {
   };
 
   const handleCreateCompany = async (searchInput?: string) => {
-    const createdCompany = await createCompany({
-      name: searchInput?.trim() || 'Nova empresa',
-    });
+    const newCompanyId = v4();
+    const createdCompany = await createCompany(
+      buildRecordLabelPayload({
+        id: newCompanyId,
+        searchInput,
+        objectMetadataItem: companyObjectMetadataItem,
+      }),
+    );
 
     if (isDefined(createdCompany)) {
       setCompanyId(createdCompany.id);
+    }
+  };
+
+  const handleCreatePerson = async (searchInput?: string) => {
+    const newPersonId = v4();
+    const createdPerson = await createPerson(
+      buildRecordLabelPayload({
+        id: newPersonId,
+        searchInput,
+        objectMetadataItem: personObjectMetadataItem,
+      }),
+    );
+
+    if (isDefined(createdPerson)) {
+      setPersonId(createdPerson.id);
     }
   };
 
@@ -184,6 +220,7 @@ const OpportunityCreateGateModalContent = () => {
         ...pendingRequest.recordInput,
         name: name.trim(),
         companyId,
+        pointOfContactId: personId,
         eventModality: modality,
         eventAt,
         amount: {
@@ -275,13 +312,23 @@ const OpportunityCreateGateModalContent = () => {
         />
 
         <FormSingleRecordPicker
-          label="Empresa/Contato"
+          label="Empresa"
           defaultValue={companyId}
           onChange={(value) => setCompanyId((value as string | null) ?? null)}
           onCreate={handleCreateCompany}
           objectNameSingulars={[CoreObjectNameSingular.Company]}
           isDropdownInModal
           testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-company`}
+        />
+
+        <FormSingleRecordPicker
+          label="Contato"
+          defaultValue={personId}
+          onChange={(value) => setPersonId((value as string | null) ?? null)}
+          onCreate={handleCreatePerson}
+          objectNameSingulars={[CoreObjectNameSingular.Person]}
+          isDropdownInModal
+          testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-person`}
         />
 
         <Select
