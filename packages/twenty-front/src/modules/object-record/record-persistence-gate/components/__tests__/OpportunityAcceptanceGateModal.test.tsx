@@ -20,6 +20,15 @@ let proposalRecords: unknown[] = [];
 const translatedMessages: Record<string, string> = {
   ytcDq7: 'Cancelar',
   'hY+loZ': 'Avançar',
+  djY9gY: 'Status da proposta',
+  j2sq5K: 'Rascunho',
+  D4Aohv: 'Enviada',
+  '8ShcFl': 'Substituída',
+  d0Yj8q: 'Aceita',
+  '9K9Wi4': 'Recusada',
+  hft8Em: 'Valor fechado (R$)',
+  NJGXuk:
+    'Nenhuma proposta encontrada para esta oportunidade. Crie uma proposta antes de avançar.',
 };
 
 jest.mock('@lingui/react/macro', () => ({
@@ -114,6 +123,61 @@ jest.mock('twenty-ui/input', () => ({
   ),
 }));
 
+jest.mock('@/ui/input/components/Select', () => ({
+  Select: ({
+    dropdownId,
+    label,
+    value,
+    options,
+    onChange,
+  }: {
+    dropdownId: string;
+    label: string;
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (value: string) => void;
+  }) => (
+    <label>
+      {label}
+      <select
+        data-testid={dropdownId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="" />
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  ),
+}));
+
+jest.mock('@/ui/input/components/SettingsTextInput', () => ({
+  SettingsTextInput: ({
+    label,
+    value,
+    onChange,
+    type,
+  }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    type?: string;
+  }) => (
+    <label>
+      {label}
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  ),
+}));
+
 const Wrapper = getJestMetadataAndApolloMocksWrapper({ apolloMocks: [] });
 
 const openGate = () => {
@@ -187,6 +251,29 @@ describe('OpportunityAcceptanceGateModal', () => {
     expect(screen.getByText('Avançar')).toBeDisabled();
   });
 
+  it('lets the user resolve an unaccepted proposal directly from the modal', async () => {
+    proposalRecords = [{ id: 'proposal-1', version: 1, status: 'SENT' }];
+    const user = userEvent.setup();
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(screen.getByText('Avançar')).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText('Status da proposta'), [
+      'ACCEPTED',
+    ]);
+
+    expect(screen.getByText('Avançar')).not.toBeDisabled();
+
+    await user.click(screen.getByText('Avançar'));
+
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+      objectNameSingular: 'eventProposal',
+      idToUpdate: 'proposal-1',
+      updateOneRecordInput: { status: 'ACCEPTED' },
+    });
+  });
+
   it('keeps the advance button disabled when the closed amount is missing', () => {
     opportunityRecords = [
       {
@@ -200,6 +287,41 @@ describe('OpportunityAcceptanceGateModal', () => {
     openGate();
 
     expect(screen.getByText('Avançar')).toBeDisabled();
+  });
+
+  it('lets the user resolve a missing closed amount directly from the modal', async () => {
+    opportunityRecords = [
+      {
+        id: 'opportunity-1',
+        name: 'Confraternização de fim de ano',
+        ownerId: 'owner-1',
+        eventClosedAmount: null,
+      },
+    ];
+    const user = userEvent.setup();
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(screen.getByText('Avançar')).toBeDisabled();
+
+    await user.type(screen.getByLabelText('Valor fechado (R$)'), '4200');
+
+    expect(screen.getByText('Avançar')).not.toBeDisabled();
+
+    await user.click(screen.getByText('Avançar'));
+
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectNameSingular: CoreObjectNameSingular.Opportunity,
+        idToUpdate: 'opportunity-1',
+        updateOneRecordInput: expect.objectContaining({
+          eventClosedAmount: {
+            amountMicros: 4_200_000_000,
+            currencyCode: 'BRL',
+          },
+        }),
+      }),
+    );
   });
 
   it('allows advancing with a closed amount of zero, since "filled" is not "positive"', () => {
@@ -226,6 +348,15 @@ describe('OpportunityAcceptanceGateModal', () => {
     openGate();
 
     expect(screen.getByText('Avançar')).toBeDisabled();
+  });
+
+  it('keeps the advance button disabled and explains when no proposal exists', () => {
+    proposalRecords = [];
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(screen.getByText('Avançar')).toBeDisabled();
+    expect(screen.getByText(/Nenhuma proposta encontrada/)).toBeInTheDocument();
   });
 
   it('advances the stage and creates the registration-request task after confirmation', async () => {

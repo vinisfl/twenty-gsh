@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { useLingui } from '@lingui/react/macro';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -21,6 +21,8 @@ import { opportunityStageAdvancePendingRequestState } from '@/object-record/reco
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsProposalToAcceptanceStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsProposalToAcceptanceStageAdvance';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
+import { Select } from '@/ui/input/components/Select';
+import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { ModalStatefulWrapper } from '@/ui/layout/modal/components/ModalStatefulWrapper';
 import { useModal } from '@/ui/layout/modal/hooks/useModal';
@@ -38,20 +40,10 @@ const StyledSectionContainer = styled.div`
   margin-bottom: ${themeCssVariables.spacing[6]};
 `;
 
-const StyledRequirements = styled.ul`
+const StyledFields = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${themeCssVariables.spacing[2]};
-  list-style: none;
-  margin: 0;
-  padding: 0;
-`;
-
-const StyledRequirementRow = styled.li<{ isMet: boolean }>`
-  color: ${({ isMet }) =>
-    isMet
-      ? themeCssVariables.font.color.primary
-      : themeCssVariables.font.color.danger};
+  gap: ${themeCssVariables.spacing[4]};
 `;
 
 const StyledModalActions = styled.div`
@@ -111,6 +103,19 @@ const OpportunityAcceptanceGateModalContent = () => {
     objectNameSingular: CoreObjectNameSingular.TaskTarget,
   });
 
+  const proposalStatusOptions = [
+    { value: 'DRAFT', label: t`Rascunho` },
+    { value: 'SENT', label: t`Enviada` },
+    { value: 'SUPERSEDED', label: t`Substituída` },
+    { value: 'ACCEPTED', label: t`Aceita` },
+    { value: 'REJECTED', label: t`Recusada` },
+  ];
+
+  const [proposalStatus, setProposalStatus] = useState('');
+  const [closedAmount, setClosedAmount] = useState('');
+  const [initializedRequestId, setInitializedRequestId] = useState<
+    string | null
+  >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Several gate modals share this single-handler extension point (one per
@@ -137,6 +142,7 @@ const OpportunityAcceptanceGateModalContent = () => {
 
   const opportunity = opportunities[0];
   const latestProposal = getLatestProposal(proposals);
+  const isLoading = isLoadingOpportunity || isLoadingProposals;
 
   const handleProposalToAcceptanceAdvance: OpportunityStageAdvanceGateHandler =
     useCallback(
@@ -163,30 +169,77 @@ const OpportunityAcceptanceGateModalContent = () => {
     handleProposalToAcceptanceAdvance,
   );
 
+  useEffect(() => {
+    if (
+      !isDefined(pendingRequest) ||
+      !isOwnPendingRequest ||
+      isLoading ||
+      initializedRequestId === pendingRequest.recordId
+    ) {
+      return;
+    }
+
+    setProposalStatus(latestProposal?.status ?? '');
+    setClosedAmount(
+      isDefined(opportunity?.eventClosedAmount?.amountMicros)
+        ? String(opportunity.eventClosedAmount.amountMicros / 1_000_000)
+        : '',
+    );
+    setInitializedRequestId(pendingRequest.recordId);
+  }, [
+    initializedRequestId,
+    isLoading,
+    isOwnPendingRequest,
+    latestProposal,
+    opportunity,
+    pendingRequest,
+  ]);
+
+  const resetForm = () => {
+    setProposalStatus('');
+    setClosedAmount('');
+    setInitializedRequestId(null);
+  };
+
   const handleClose = () => {
     closeModal(OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID);
     setPendingRequest(null);
+    resetForm();
   };
 
-  const isProposalAccepted = latestProposal?.status === 'ACCEPTED';
-  const isClosedAmountFilled = isDefined(
-    opportunity?.eventClosedAmount?.amountMicros,
-  );
+  const parsedClosedAmount = Number(closedAmount);
+  const isProposalAccepted = proposalStatus === 'ACCEPTED';
+  const isClosedAmountFilled =
+    closedAmount.trim().length > 0 && Number.isFinite(parsedClosedAmount);
 
   const isFormValid =
     isProposalAccepted &&
     isClosedAmountFilled &&
     isDefined(opportunity) &&
+    isDefined(latestProposal) &&
     isOwnPendingRequest;
 
   const handleConfirm = async () => {
-    if (!isFormValid || !isDefined(pendingRequest) || !isDefined(opportunity)) {
+    if (
+      !isFormValid ||
+      !isDefined(pendingRequest) ||
+      !isDefined(opportunity) ||
+      !isDefined(latestProposal)
+    ) {
       return;
     }
 
     setIsSubmitting(true);
 
     try {
+      if (latestProposal.status !== proposalStatus) {
+        await updateOneRecord({
+          objectNameSingular: 'eventProposal',
+          idToUpdate: latestProposal.id,
+          updateOneRecordInput: { status: proposalStatus },
+        });
+      }
+
       const task = await createTask({
         title: GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE,
         status: 'TODO',
@@ -203,6 +256,10 @@ const OpportunityAcceptanceGateModalContent = () => {
         idToUpdate: pendingRequest.recordId,
         updateOneRecordInput: {
           eventProcessStage: pendingRequest.destinationStageValue,
+          eventClosedAmount: {
+            amountMicros: Math.round(parsedClosedAmount * 1_000_000),
+            currencyCode: 'BRL',
+          },
         },
       });
 
@@ -220,7 +277,7 @@ const OpportunityAcceptanceGateModalContent = () => {
     return null;
   }
 
-  const isLoading = isLoadingOpportunity || isLoadingProposals;
+  const hasProposal = isLoading || isDefined(latestProposal);
 
   return (
     <ModalStatefulWrapper
@@ -247,7 +304,7 @@ const OpportunityAcceptanceGateModalContent = () => {
           alignment={SectionAlignment.Center}
           fontColor={SectionFontColor.Primary}
         >
-          {t`Esta oportunidade só pode avançar quando a proposta estiver aceita e o valor fechado estiver preenchido. Ajuste esses dados em "Atualizar evento" se necessário.`}
+          {t`Confirme a proposta aceita e o valor fechado para avançar esta oportunidade.`}
         </Section>
       </StyledSectionContainer>
 
@@ -255,19 +312,32 @@ const OpportunityAcceptanceGateModalContent = () => {
         <Section alignment={SectionAlignment.Center}>
           {t`Carregando dados da proposta…`}
         </Section>
+      ) : !hasProposal ? (
+        <Section alignment={SectionAlignment.Center}>
+          {t`Nenhuma proposta encontrada para esta oportunidade. Crie uma proposta antes de avançar.`}
+        </Section>
       ) : (
-        <StyledRequirements>
-          <StyledRequirementRow isMet={isProposalAccepted}>
-            {isProposalAccepted
-              ? t`✓ Proposta com status "Aceita"`
-              : t`✗ Proposta ainda não está com status "Aceita"`}
-          </StyledRequirementRow>
-          <StyledRequirementRow isMet={isClosedAmountFilled}>
-            {isClosedAmountFilled
-              ? t`✓ Valor fechado preenchido`
-              : t`✗ Valor fechado não preenchido`}
-          </StyledRequirementRow>
-        </StyledRequirements>
+        <StyledFields>
+          <Select
+            dropdownId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-proposal-status`}
+            label={t`Status da proposta`}
+            value={proposalStatus}
+            options={proposalStatusOptions}
+            onChange={setProposalStatus}
+            isDropdownInModal
+            fullWidth
+          />
+          <SettingsTextInput
+            instanceId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-closed-amount`}
+            label={t`Valor fechado (R$)`}
+            type="number"
+            min={0}
+            leftAdornment="R$"
+            value={closedAmount}
+            onChange={setClosedAmount}
+            fullWidth
+          />
+        </StyledFields>
       )}
 
       <StyledModalActions>
