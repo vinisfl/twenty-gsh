@@ -27,6 +27,7 @@ const translatedMessages: Record<string, string> = {
   d0Yj8q: 'Aceita',
   '9K9Wi4': 'Recusada',
   hft8Em: 'Valor fechado (R$)',
+  XRQmS4: 'Evidência do aceite',
   NJGXuk:
     'Nenhuma proposta encontrada para esta oportunidade. Crie uma proposta antes de avançar.',
 };
@@ -203,6 +204,7 @@ describe('OpportunityAcceptanceGateModal', () => {
         name: 'Confraternização de fim de ano',
         ownerId: 'owner-1',
         eventClosedAmount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
+        eventAcceptanceEvidence: 'https://mail.example.com/aceite-cliente',
       },
     ];
     proposalRecords = [{ id: 'proposal-1', version: 1, status: 'ACCEPTED' }];
@@ -281,6 +283,7 @@ describe('OpportunityAcceptanceGateModal', () => {
         name: 'Confraternização de fim de ano',
         ownerId: 'owner-1',
         eventClosedAmount: null,
+        eventAcceptanceEvidence: 'https://mail.example.com/aceite-cliente',
       },
     ];
     render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
@@ -296,6 +299,7 @@ describe('OpportunityAcceptanceGateModal', () => {
         name: 'Confraternização de fim de ano',
         ownerId: 'owner-1',
         eventClosedAmount: null,
+        eventAcceptanceEvidence: 'https://mail.example.com/aceite-cliente',
       },
     ];
     const user = userEvent.setup();
@@ -331,12 +335,65 @@ describe('OpportunityAcceptanceGateModal', () => {
         name: 'Confraternização de fim de ano',
         ownerId: 'owner-1',
         eventClosedAmount: { amountMicros: 0, currencyCode: 'BRL' },
+        eventAcceptanceEvidence: 'https://mail.example.com/aceite-cliente',
       },
     ];
     render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
     openGate();
 
     expect(screen.getByText('Avançar')).not.toBeDisabled();
+  });
+
+  it('keeps the advance button disabled when the acceptance evidence is missing', () => {
+    opportunityRecords = [
+      {
+        id: 'opportunity-1',
+        name: 'Confraternização de fim de ano',
+        ownerId: 'owner-1',
+        eventClosedAmount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
+        eventAcceptanceEvidence: null,
+      },
+    ];
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(screen.getByText('Avançar')).toBeDisabled();
+  });
+
+  it('lets the user resolve missing acceptance evidence directly from the modal', async () => {
+    opportunityRecords = [
+      {
+        id: 'opportunity-1',
+        name: 'Confraternização de fim de ano',
+        ownerId: 'owner-1',
+        eventClosedAmount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
+        eventAcceptanceEvidence: null,
+      },
+    ];
+    const user = userEvent.setup();
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(screen.getByText('Avançar')).toBeDisabled();
+
+    await user.type(
+      screen.getByLabelText('Evidência do aceite'),
+      'https://mail.example.com/aceite-cliente',
+    );
+
+    expect(screen.getByText('Avançar')).not.toBeDisabled();
+
+    await user.click(screen.getByText('Avançar'));
+
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectNameSingular: CoreObjectNameSingular.Opportunity,
+        idToUpdate: 'opportunity-1',
+        updateOneRecordInput: expect.objectContaining({
+          eventAcceptanceEvidence: 'https://mail.example.com/aceite-cliente',
+        }),
+      }),
+    );
   });
 
   it('only considers the latest proposal version when checking acceptance', () => {

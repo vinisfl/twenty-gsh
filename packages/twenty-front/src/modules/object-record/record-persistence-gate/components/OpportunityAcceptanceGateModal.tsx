@@ -113,6 +113,7 @@ const OpportunityAcceptanceGateModalContent = () => {
 
   const [proposalStatus, setProposalStatus] = useState('');
   const [closedAmount, setClosedAmount] = useState('');
+  const [acceptanceEvidence, setAcceptanceEvidence] = useState('');
   const [initializedRequestId, setInitializedRequestId] = useState<
     string | null
   >(null);
@@ -185,6 +186,7 @@ const OpportunityAcceptanceGateModalContent = () => {
         ? String(opportunity.eventClosedAmount.amountMicros / 1_000_000)
         : '',
     );
+    setAcceptanceEvidence(opportunity?.eventAcceptanceEvidence ?? '');
     setInitializedRequestId(pendingRequest.recordId);
   }, [
     initializedRequestId,
@@ -198,6 +200,7 @@ const OpportunityAcceptanceGateModalContent = () => {
   const resetForm = () => {
     setProposalStatus('');
     setClosedAmount('');
+    setAcceptanceEvidence('');
     setInitializedRequestId(null);
   };
 
@@ -211,10 +214,12 @@ const OpportunityAcceptanceGateModalContent = () => {
   const isProposalAccepted = proposalStatus === 'ACCEPTED';
   const isClosedAmountFilled =
     closedAmount.trim().length > 0 && Number.isFinite(parsedClosedAmount);
+  const isEvidenceFilled = acceptanceEvidence.trim().length > 0;
 
   const isFormValid =
     isProposalAccepted &&
     isClosedAmountFilled &&
+    isEvidenceFilled &&
     isDefined(opportunity) &&
     isDefined(latestProposal) &&
     isOwnPendingRequest;
@@ -260,6 +265,7 @@ const OpportunityAcceptanceGateModalContent = () => {
             amountMicros: Math.round(parsedClosedAmount * 1_000_000),
             currencyCode: 'BRL',
           },
+          eventAcceptanceEvidence: acceptanceEvidence.trim(),
         },
       });
 
@@ -304,7 +310,7 @@ const OpportunityAcceptanceGateModalContent = () => {
           alignment={SectionAlignment.Center}
           fontColor={SectionFontColor.Primary}
         >
-          {t`Confirme a proposta aceita e o valor fechado para avançar esta oportunidade.`}
+          {t`Confirme a proposta aceita, o valor fechado e a evidência do aceite para avançar esta oportunidade.`}
         </Section>
       </StyledSectionContainer>
 
@@ -335,6 +341,14 @@ const OpportunityAcceptanceGateModalContent = () => {
             leftAdornment="R$"
             value={closedAmount}
             onChange={setClosedAmount}
+            fullWidth
+          />
+          <SettingsTextInput
+            instanceId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-acceptance-evidence`}
+            label={t`Evidência do aceite`}
+            placeholder={t`Link do e-mail, mensagem ou documento que confirma o aceite`}
+            value={acceptanceEvidence}
+            onChange={setAcceptanceEvidence}
             fullWidth
           />
         </StyledFields>
