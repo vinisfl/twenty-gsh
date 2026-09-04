@@ -148,31 +148,45 @@ const OpportunityQualificationGateModalContent = () => {
   ];
 
   useEffect(() => {
+    const handleQualificationToProposalAdvance: OpportunityStageAdvanceGateHandler =
+      ({ recordId, sourceStageValue, destinationStageValue }) => {
+        if (
+          !isDefined(destinationStageValue) ||
+          !getIsQualificationToProposalStageAdvance({
+            sourceStageValue,
+            destinationStageValue,
+          })
+        ) {
+          return true;
+        }
+
+        setPendingRequest({ recordId, destinationStageValue });
+        openModal(OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID);
+
+        return false;
+      };
+
+    // Several gate modals share this single-handler extension point (one per
+    // stage transition — see OpportunityAcceptanceGateModal). Compose with
+    // whatever handler is already registered instead of replacing it, and
+    // restore that exact previous handler on cleanup, so gates mounted
+    // together don't clobber each other.
+    let previousHandler: OpportunityStageAdvanceGateHandler | undefined;
+
     setOpportunityStageAdvanceGateHandler(
-      () =>
-        ({
-          recordId,
-          sourceStageValue,
-          destinationStageValue,
-        }: Parameters<OpportunityStageAdvanceGateHandler>[0]) => {
-          if (
-            !isDefined(destinationStageValue) ||
-            !getIsQualificationToProposalStageAdvance({
-              sourceStageValue,
-              destinationStageValue,
-            })
-          ) {
-            return true;
-          }
+      (currentHandler: OpportunityStageAdvanceGateHandler | undefined) => {
+        previousHandler = currentHandler;
 
-          setPendingRequest({ recordId, destinationStageValue });
-          openModal(OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID);
+        const composedHandler: OpportunityStageAdvanceGateHandler = (params) =>
+          handleQualificationToProposalAdvance(params) === false
+            ? false
+            : (previousHandler?.(params) ?? true);
 
-          return false;
-        },
+        return composedHandler;
+      },
     );
 
-    return () => setOpportunityStageAdvanceGateHandler(undefined);
+    return () => setOpportunityStageAdvanceGateHandler(() => previousHandler);
   }, [openModal, setOpportunityStageAdvanceGateHandler, setPendingRequest]);
 
   useEffect(() => {
