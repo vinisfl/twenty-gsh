@@ -32,6 +32,8 @@ import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadat
 import { getRecordFromRecordNode } from '@/object-record/cache/utils/getRecordFromRecordNode';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { buildMorphRelationUpdateInput } from '@/object-record/record-field/ui/meta-types/input/utils/buildMorphRelationUpdateInput';
+import { recordFieldPersistGateHandlerState } from '@/object-record/record-persistence-gate/states/recordFieldPersistGateHandlerState';
+import { getShouldBlockRecordFieldPersist } from '@/object-record/record-persistence-gate/utils/getShouldBlockRecordFieldPersist';
 import { isFieldArray } from '@/object-record/record-field/ui/types/guards/isFieldArray';
 import { isFieldArrayValue } from '@/object-record/record-field/ui/types/guards/isFieldArrayValue';
 import { isFieldBoolean } from '@/object-record/record-field/ui/types/guards/isFieldBoolean';
@@ -84,6 +86,22 @@ export const usePersistField = ({
       fieldDefinition: FieldDefinition<FieldMetadata>;
       valueToPersist: unknown;
     }) => {
+      const fieldName = fieldDefinition.metadata.fieldName;
+
+      const shouldBlockPersist = await getShouldBlockRecordFieldPersist({
+        objectNameSingular: objectMetadataItem.nameSingular,
+        recordId,
+        fieldName,
+        valueToPersist,
+        recordFieldPersistGateHandler: store.get(
+          recordFieldPersistGateHandlerState,
+        ),
+      });
+
+      if (shouldBlockPersist) {
+        return;
+      }
+
       const fieldIsRelationManyToOne =
         isFieldRelationManyToOne(
           fieldDefinition as FieldDefinition<FieldRelationMetadata>,
@@ -184,8 +202,6 @@ export const usePersistField = ({
         fieldIsRichText;
 
       if (isValuePersistable) {
-        const fieldName = fieldDefinition.metadata.fieldName;
-
         const currentValue = store.get(
           recordStoreFamilySelector.selectorFamily({ recordId, fieldName }),
         ) as { id?: string } | null | undefined;
