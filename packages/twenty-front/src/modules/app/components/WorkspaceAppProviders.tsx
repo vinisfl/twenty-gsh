@@ -22,6 +22,7 @@ import { UserMetadataProviderInitialEffect } from '@/metadata-store/effect-compo
 import { ApolloCoreProvider } from '@/object-metadata/components/ApolloCoreProvider';
 import { OpportunityAcceptanceGateModal } from '@/object-record/record-persistence-gate/components/OpportunityAcceptanceGateModal';
 import { OpportunityCreateGateModal } from '@/object-record/record-persistence-gate/components/OpportunityCreateGateModal';
+import { OpportunityProductionGateModal } from '@/object-record/record-persistence-gate/components/OpportunityProductionGateModal';
 import { OpportunityQualificationGateModal } from '@/object-record/record-persistence-gate/components/OpportunityQualificationGateModal';
 import { WelcomeOverlay } from '@/onboarding/components/WelcomeOverlay/WelcomeOverlay';
 import { CompanyEnrichmentOnboardingEffect } from '@/onboarding/effect-components/CompanyEnrichmentOnboardingEffect';
@@ -77,6 +78,7 @@ export const WorkspaceAppProviders = () => {
                             <OpportunityCreateGateModal />
                             <OpportunityQualificationGateModal />
                             <OpportunityAcceptanceGateModal />
+                            <OpportunityProductionGateModal />
                             <CommandMenuConfirmationModalManager />
                             <CommandRunner />
                           </StrictMode>
