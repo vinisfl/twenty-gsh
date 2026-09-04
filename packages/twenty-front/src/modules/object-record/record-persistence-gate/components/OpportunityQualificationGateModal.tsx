@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { useLingui } from '@lingui/react/macro';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -16,7 +16,7 @@ import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityQualificationGateModalId';
-import { opportunityStageAdvanceGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvanceGateHandlerState';
+import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/hooks/useRegisterOpportunityStageAdvanceGateHandler';
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsQualificationToProposalStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsQualificationToProposalStageAdvance';
@@ -86,9 +86,6 @@ export const OpportunityQualificationGateModal = () => {
 
 const OpportunityQualificationGateModalContent = () => {
   const { t } = useLingui();
-  const setOpportunityStageAdvanceGateHandler = useSetAtom(
-    opportunityStageAdvanceGateHandlerState,
-  );
   const pendingRequest = useAtomValue(
     opportunityStageAdvancePendingRequestState,
   );
@@ -109,19 +106,27 @@ const OpportunityQualificationGateModalContent = () => {
     objectNameSingular: CoreObjectNameSingular.TaskTarget,
   });
 
+  // Several gate modals share the stage-advance pending-request atom (one
+  // per stage transition — see OpportunityAcceptanceGateModal). This is only
+  // "the" pending request when it targets this gate's destination stage;
+  // another modal owns it otherwise.
+  const isOwnPendingRequest =
+    isDefined(pendingRequest) &&
+    pendingRequest.destinationStageValue === 'PROPOSAL_NEGOTIATION';
+
   const { records: opportunities, loading: isLoadingOpportunity } =
     useFindManyRecords({
       objectNameSingular: CoreObjectNameSingular.Opportunity,
       filter: { id: { eq: pendingRequest?.recordId } },
       limit: 1,
-      skip: !isDefined(pendingRequest),
+      skip: !isOwnPendingRequest,
     });
   const { records: corporateEvents, loading: isLoadingCorporateEvent } =
     useFindManyRecords({
       objectNameSingular: 'corporateEvent',
       filter: { opportunityId: { eq: pendingRequest?.recordId } },
       limit: 1,
-      skip: !isDefined(pendingRequest),
+      skip: !isOwnPendingRequest,
     });
 
   const opportunity = opportunities[0];
@@ -147,8 +152,8 @@ const OpportunityQualificationGateModalContent = () => {
     { value: 'OTHER', label: t`Other` },
   ];
 
-  useEffect(() => {
-    const handleQualificationToProposalAdvance: OpportunityStageAdvanceGateHandler =
+  const handleQualificationToProposalAdvance: OpportunityStageAdvanceGateHandler =
+    useCallback(
       ({ recordId, sourceStageValue, destinationStageValue }) => {
         if (
           !isDefined(destinationStageValue) ||
@@ -164,34 +169,18 @@ const OpportunityQualificationGateModalContent = () => {
         openModal(OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID);
 
         return false;
-      };
-
-    // Several gate modals share this single-handler extension point (one per
-    // stage transition — see OpportunityAcceptanceGateModal). Compose with
-    // whatever handler is already registered instead of replacing it, and
-    // restore that exact previous handler on cleanup, so gates mounted
-    // together don't clobber each other.
-    let previousHandler: OpportunityStageAdvanceGateHandler | undefined;
-
-    setOpportunityStageAdvanceGateHandler(
-      (currentHandler: OpportunityStageAdvanceGateHandler | undefined) => {
-        previousHandler = currentHandler;
-
-        const composedHandler: OpportunityStageAdvanceGateHandler = (params) =>
-          handleQualificationToProposalAdvance(params) === false
-            ? false
-            : (previousHandler?.(params) ?? true);
-
-        return composedHandler;
       },
+      [openModal, setPendingRequest],
     );
 
-    return () => setOpportunityStageAdvanceGateHandler(() => previousHandler);
-  }, [openModal, setOpportunityStageAdvanceGateHandler, setPendingRequest]);
+  useRegisterOpportunityStageAdvanceGateHandler(
+    handleQualificationToProposalAdvance,
+  );
 
   useEffect(() => {
     if (
       !isDefined(pendingRequest) ||
+      !isOwnPendingRequest ||
       isLoadingOpportunity ||
       isLoadingCorporateEvent ||
       initializedRequestId === pendingRequest.recordId
@@ -220,6 +209,7 @@ const OpportunityQualificationGateModalContent = () => {
     initializedRequestId,
     isLoadingCorporateEvent,
     isLoadingOpportunity,
+    isOwnPendingRequest,
     opportunity,
     pendingRequest,
   ]);
@@ -322,7 +312,7 @@ const OpportunityQualificationGateModalContent = () => {
     }
   };
 
-  if (!isDefined(pendingRequest)) {
+  if (!isOwnPendingRequest) {
     return null;
   }
 

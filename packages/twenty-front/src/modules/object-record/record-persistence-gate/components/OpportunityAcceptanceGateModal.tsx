@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { useLingui } from '@lingui/react/macro';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -16,10 +16,11 @@ import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityAcceptanceGateModalId';
-import { opportunityStageAdvanceGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvanceGateHandlerState';
+import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/hooks/useRegisterOpportunityStageAdvanceGateHandler';
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsProposalToAcceptanceStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsProposalToAcceptanceStageAdvance';
+import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { ModalStatefulWrapper } from '@/ui/layout/modal/components/ModalStatefulWrapper';
 import { useModal } from '@/ui/layout/modal/hooks/useModal';
@@ -63,8 +64,7 @@ const StyledModalActions = styled.div`
   }
 `;
 
-type ProposalRecord = {
-  id: string;
+type ProposalRecord = ObjectRecord & {
   version: number | null;
   status: string | null;
 };
@@ -94,9 +94,6 @@ export const OpportunityAcceptanceGateModal = () => {
 
 const OpportunityAcceptanceGateModalContent = () => {
   const { t } = useLingui();
-  const setOpportunityStageAdvanceGateHandler = useSetAtom(
-    opportunityStageAdvanceGateHandlerState,
-  );
   const pendingRequest = useAtomValue(
     opportunityStageAdvancePendingRequestState,
   );
@@ -132,19 +129,17 @@ const OpportunityAcceptanceGateModalContent = () => {
       skip: !isOwnPendingRequest,
     });
   const { records: proposals, loading: isLoadingProposals } =
-    useFindManyRecords({
+    useFindManyRecords<ProposalRecord>({
       objectNameSingular: 'eventProposal',
       filter: { opportunityId: { eq: pendingRequest?.recordId } },
       skip: !isOwnPendingRequest,
     });
 
   const opportunity = opportunities[0];
-  const latestProposal = getLatestProposal(
-    proposals as unknown as ProposalRecord[],
-  );
+  const latestProposal = getLatestProposal(proposals);
 
-  useEffect(() => {
-    const handleProposalToAcceptanceAdvance: OpportunityStageAdvanceGateHandler =
+  const handleProposalToAcceptanceAdvance: OpportunityStageAdvanceGateHandler =
+    useCallback(
       ({ recordId, sourceStageValue, destinationStageValue }) => {
         if (
           !isDefined(destinationStageValue) ||
@@ -160,25 +155,13 @@ const OpportunityAcceptanceGateModalContent = () => {
         openModal(OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID);
 
         return false;
-      };
-
-    let previousHandler: OpportunityStageAdvanceGateHandler | undefined;
-
-    setOpportunityStageAdvanceGateHandler(
-      (currentHandler: OpportunityStageAdvanceGateHandler | undefined) => {
-        previousHandler = currentHandler;
-
-        const composedHandler: OpportunityStageAdvanceGateHandler = (params) =>
-          handleProposalToAcceptanceAdvance(params) === false
-            ? false
-            : (previousHandler?.(params) ?? true);
-
-        return composedHandler;
       },
+      [openModal, setPendingRequest],
     );
 
-    return () => setOpportunityStageAdvanceGateHandler(() => previousHandler);
-  }, [openModal, setOpportunityStageAdvanceGateHandler, setPendingRequest]);
+  useRegisterOpportunityStageAdvanceGateHandler(
+    handleProposalToAcceptanceAdvance,
+  );
 
   const handleClose = () => {
     closeModal(OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID);
@@ -186,9 +169,9 @@ const OpportunityAcceptanceGateModalContent = () => {
   };
 
   const isProposalAccepted = latestProposal?.status === 'ACCEPTED';
-  const isClosedAmountFilled =
-    isDefined(opportunity?.eventClosedAmount?.amountMicros) &&
-    (opportunity.eventClosedAmount.amountMicros ?? 0) > 0;
+  const isClosedAmountFilled = isDefined(
+    opportunity?.eventClosedAmount?.amountMicros,
+  );
 
   const isFormValid =
     isProposalAccepted &&

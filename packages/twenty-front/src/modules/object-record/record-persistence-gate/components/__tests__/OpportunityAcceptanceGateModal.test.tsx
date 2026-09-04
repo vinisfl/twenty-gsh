@@ -202,6 +202,21 @@ describe('OpportunityAcceptanceGateModal', () => {
     expect(screen.getByText('Avançar')).toBeDisabled();
   });
 
+  it('allows advancing with a closed amount of zero, since "filled" is not "positive"', () => {
+    opportunityRecords = [
+      {
+        id: 'opportunity-1',
+        name: 'Confraternização de fim de ano',
+        ownerId: 'owner-1',
+        eventClosedAmount: { amountMicros: 0, currencyCode: 'BRL' },
+      },
+    ];
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(screen.getByText('Avançar')).not.toBeDisabled();
+  });
+
   it('only considers the latest proposal version when checking acceptance', () => {
     proposalRecords = [
       { id: 'proposal-1', version: 1, status: 'ACCEPTED' },
