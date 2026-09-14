@@ -12,6 +12,8 @@ import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
+import { GateRequirementSummary } from '@/object-record/record-persistence-gate/components/GateRequirementSummary';
+import { GateFieldWrapper } from '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
@@ -22,6 +24,7 @@ import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-
 import { getIsProposalToAcceptanceStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsProposalToAcceptanceStageAdvance';
 import { getLatestProposal } from '@/object-record/record-persistence-gate/utils/getLatestProposal';
 import { getProposalToAcceptanceGateRequirements } from '@/object-record/record-persistence-gate/utils/getProposalToAcceptanceGateRequirements';
+import { getGateFieldStatus } from '@/object-record/record-persistence-gate/utils/getGateFieldStatus';
 import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { Select } from '@/ui/input/components/Select';
@@ -222,6 +225,22 @@ const OpportunityAcceptanceGateModalContent = () => {
     isDefined(opportunity) &&
     isDefined(latestProposal) &&
     isOwnPendingRequest;
+  const missingRequirementLabels = gateRequirements.missingRequirementKeys.map(
+    (key) =>
+      ({
+        proposalAccepted: t`Proposta aceita`,
+        closedAmount: t`Valor fechado`,
+        acceptanceEvidence: t`Evidência do aceite`,
+      })[key],
+  );
+  const getRequirementStatus = (
+    key: (typeof gateRequirements.missingRequirementKeys)[number],
+    isInherited: boolean,
+  ) =>
+    getGateFieldStatus({
+      isSatisfied: !gateRequirements.missingRequirementKeys.includes(key),
+      isInherited,
+    });
 
   const handleConfirm = async () => {
     if (
@@ -324,34 +343,68 @@ const OpportunityAcceptanceGateModalContent = () => {
         </Section>
       ) : (
         <StyledFields>
-          <Select
-            dropdownId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-proposal-status`}
-            label={t`Status da proposta`}
-            value={proposalStatus}
-            options={proposalStatusOptions}
-            onChange={setProposalStatus}
-            isDropdownInModal
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-closed-amount`}
-            label={t`Valor fechado (R$)`}
-            type="number"
-            min={0}
-            leftAdornment="R$"
-            value={closedAmount}
-            onChange={setClosedAmount}
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-acceptance-evidence`}
-            label={t`Evidência do aceite`}
-            placeholder={t`Link do e-mail, mensagem ou documento que confirma o aceite`}
-            value={acceptanceEvidence}
-            onChange={setAcceptanceEvidence}
-            fullWidth
-          />
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'proposalAccepted',
+              proposalStatus === latestProposal?.status,
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-proposal-status`}
+              label={t`Status da proposta`}
+              value={proposalStatus}
+              options={proposalStatusOptions}
+              onChange={setProposalStatus}
+              isDropdownInModal
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'closedAmount',
+              closedAmount ===
+                (isDefined(opportunity?.eventClosedAmount?.amountMicros)
+                  ? String(
+                      opportunity.eventClosedAmount.amountMicros / 1_000_000,
+                    )
+                  : ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-closed-amount`}
+              label={t`Valor fechado (R$)`}
+              type="number"
+              min={0}
+              leftAdornment="R$"
+              value={closedAmount}
+              onChange={setClosedAmount}
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'acceptanceEvidence',
+              acceptanceEvidence ===
+                (opportunity?.eventAcceptanceEvidence ?? ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID}-acceptance-evidence`}
+              label={t`Evidência do aceite`}
+              placeholder={t`Link do e-mail, mensagem ou documento que confirma o aceite`}
+              value={acceptanceEvidence}
+              onChange={setAcceptanceEvidence}
+              fullWidth
+            />
+          </GateFieldWrapper>
         </StyledFields>
+      )}
+
+      {!isFormValid && (
+        <GateRequirementSummary
+          missingRequirementLabels={missingRequirementLabels}
+          isLoading={isLoading}
+        />
       )}
 
       <StyledModalActions>

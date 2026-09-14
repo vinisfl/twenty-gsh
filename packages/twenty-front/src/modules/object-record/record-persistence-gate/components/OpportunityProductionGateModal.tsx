@@ -12,6 +12,8 @@ import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
+import { GateRequirementSummary } from '@/object-record/record-persistence-gate/components/GateRequirementSummary';
+import { GateFieldWrapper } from '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
@@ -20,6 +22,7 @@ import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/r
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getAcceptanceToProductionGateRequirements } from '@/object-record/record-persistence-gate/utils/getAcceptanceToProductionGateRequirements';
+import { getGateFieldStatus } from '@/object-record/record-persistence-gate/utils/getGateFieldStatus';
 import { getIsAcceptanceToProductionStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsAcceptanceToProductionStageAdvance';
 import { isFilled } from '@/object-record/record-persistence-gate/utils/isFilled';
 import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
@@ -55,6 +58,13 @@ const StyledModalActions = styled.div`
   > div {
     flex: 1;
   }
+`;
+
+const StyledInheritedValue = styled.div`
+  color: ${themeCssVariables.font.color.secondary};
+  display: flex;
+  flex-direction: column;
+  gap: ${themeCssVariables.spacing[1]};
 `;
 
 type CompanyRecord = ObjectRecord & {
@@ -226,6 +236,24 @@ const OpportunityProductionGateModalContent = () => {
     isDefined(opportunity) &&
     isDefined(company) &&
     isOwnPendingRequest;
+  const missingRequirementLabels = gateRequirements.missingRequirementKeys.map(
+    (key) =>
+      ({
+        closedAmount: t`Valor fechado`,
+        acceptanceEvidence: t`Evidência do aceite`,
+        legalName: t`Razão social`,
+        taxId: t`CNPJ`,
+        billingEmail: t`E-mail de faturamento`,
+      })[key],
+  );
+  const getRequirementStatus = (
+    key: (typeof gateRequirements.missingRequirementKeys)[number],
+    isInherited: boolean,
+  ) =>
+    getGateFieldStatus({
+      isSatisfied: !gateRequirements.missingRequirementKeys.includes(key),
+      isInherited,
+    });
 
   const handleConfirm = async () => {
     if (
@@ -340,52 +368,105 @@ const OpportunityProductionGateModalContent = () => {
         </Section>
       ) : (
         <StyledFields>
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-closed-amount`}
-            label={t`Valor fechado (R$)`}
-            type="number"
-            min={0}
-            leftAdornment="R$"
-            value={closedAmount}
-            onChange={setClosedAmount}
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-acceptance-evidence`}
-            label={t`Evidência do aceite`}
-            placeholder={t`Link do e-mail, mensagem ou documento que confirma o aceite`}
-            value={acceptanceEvidence}
-            onChange={setAcceptanceEvidence}
-            fullWidth
-          />
-          {isLegalNameMissing && (
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'closedAmount',
+              closedAmount ===
+                (isDefined(opportunity?.eventClosedAmount?.amountMicros)
+                  ? String(
+                      opportunity.eventClosedAmount.amountMicros / 1_000_000,
+                    )
+                  : ''),
+            )}
+          >
             <SettingsTextInput
-              instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-legal-name`}
-              label={t`Razão social`}
-              value={legalName}
-              onChange={setLegalName}
+              instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-closed-amount`}
+              label={t`Valor fechado (R$)`}
+              type="number"
+              min={0}
+              leftAdornment="R$"
+              value={closedAmount}
+              onChange={setClosedAmount}
               fullWidth
             />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'acceptanceEvidence',
+              acceptanceEvidence ===
+                (opportunity?.eventAcceptanceEvidence ?? ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-acceptance-evidence`}
+              label={t`Evidência do aceite`}
+              placeholder={t`Link do e-mail, mensagem ou documento que confirma o aceite`}
+              value={acceptanceEvidence}
+              onChange={setAcceptanceEvidence}
+              fullWidth
+            />
+          </GateFieldWrapper>
+          {isLegalNameMissing ? (
+            <GateFieldWrapper status={getRequirementStatus('legalName', false)}>
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-legal-name`}
+                label={t`Razão social`}
+                value={legalName}
+                onChange={setLegalName}
+                fullWidth
+              />
+            </GateFieldWrapper>
+          ) : (
+            <GateFieldWrapper status="inherited">
+              <StyledInheritedValue>
+                {t`Razão social`}: {company?.legalName}
+              </StyledInheritedValue>
+            </GateFieldWrapper>
           )}
-          {isTaxIdMissing && (
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-tax-id`}
-              label={t`CNPJ`}
-              value={taxId}
-              onChange={setTaxId}
-              fullWidth
-            />
+          {isTaxIdMissing ? (
+            <GateFieldWrapper status={getRequirementStatus('taxId', false)}>
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-tax-id`}
+                label={t`CNPJ`}
+                value={taxId}
+                onChange={setTaxId}
+                fullWidth
+              />
+            </GateFieldWrapper>
+          ) : (
+            <GateFieldWrapper status="inherited">
+              <StyledInheritedValue>
+                {t`CNPJ`}: {company?.taxId}
+              </StyledInheritedValue>
+            </GateFieldWrapper>
           )}
-          {isBillingEmailMissing && (
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-billing-email`}
-              label={t`E-mail de faturamento`}
-              value={billingEmail}
-              onChange={setBillingEmail}
-              fullWidth
-            />
+          {isBillingEmailMissing ? (
+            <GateFieldWrapper
+              status={getRequirementStatus('billingEmail', false)}
+            >
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_PRODUCTION_GATE_MODAL_ID}-billing-email`}
+                label={t`E-mail de faturamento`}
+                value={billingEmail}
+                onChange={setBillingEmail}
+                fullWidth
+              />
+            </GateFieldWrapper>
+          ) : (
+            <GateFieldWrapper status="inherited">
+              <StyledInheritedValue>
+                {t`E-mail de faturamento`}: {company?.billingEmail}
+              </StyledInheritedValue>
+            </GateFieldWrapper>
           )}
         </StyledFields>
+      )}
+
+      {!isFormValid && (
+        <GateRequirementSummary
+          missingRequirementLabels={missingRequirementLabels}
+          isLoading={isLoading}
+        />
       )}
 
       <StyledModalActions>

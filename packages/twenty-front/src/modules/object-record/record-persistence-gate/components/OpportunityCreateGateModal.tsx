@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { useLingui } from '@lingui/react/macro';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { styled } from '@linaria/react';
 import { Temporal } from 'temporal-polyfill';
@@ -15,6 +16,8 @@ import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMembe
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { PreComputedChipGeneratorsProvider } from '@/object-metadata/components/PreComputedChipGeneratorsProvider';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
+import { GateRequirementSummary } from '@/object-record/record-persistence-gate/components/GateRequirementSummary';
+import { GateFieldWrapper } from '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
@@ -30,6 +33,7 @@ import { opportunityCreateGatePendingRequestState } from '@/object-record/record
 import { fromDateTimeLocalInputValue } from '@/object-record/record-persistence-gate/utils/fromDateTimeLocalInputValue';
 import { getNextBusinessDayIso } from '@/object-record/record-persistence-gate/utils/getNextBusinessDayIso';
 import { getOpportunityCreateCumulativeGateFlags } from '@/object-record/record-persistence-gate/utils/getOpportunityCreateCumulativeGateFlags';
+import { getGateFieldStatus } from '@/object-record/record-persistence-gate/utils/getGateFieldStatus';
 import { isFilled } from '@/object-record/record-persistence-gate/utils/isFilled';
 import { toDateTimeLocalInputValue } from '@/object-record/record-persistence-gate/utils/toDateTimeLocalInputValue';
 import { FormSingleRecordPicker } from '@/object-record/record-field/ui/form-types/components/FormSingleRecordPicker';
@@ -71,6 +75,10 @@ const StyledModalActions = styled.div`
   > div {
     flex: 1;
   }
+`;
+
+const StyledInheritedValue = styled.div`
+  color: ${themeCssVariables.font.color.secondary};
 `;
 
 type CompanyFiscalRecord = ObjectRecord & {
@@ -142,6 +150,7 @@ export const OpportunityCreateGateModal = () => {
 };
 
 const OpportunityCreateGateModalContent = () => {
+  const { t } = useLingui();
   const setOpportunityCreateGateHandler = useSetAtom(
     opportunityCreateGateHandlerState,
   );
@@ -338,6 +347,56 @@ const OpportunityCreateGateModalContent = () => {
     isQualificationFieldsValid &&
     isAcceptanceFieldsValid &&
     isProductionFieldsValid;
+  const missingRequirementLabels = [
+    ...(name.trim().length === 0 ? [t`Nome do evento`] : []),
+    ...(!isDefined(companyId) ? [t`Empresa`] : []),
+    ...(modality.length === 0 ? [t`Modalidade`] : []),
+    ...(!isDefined(eventAt) ? [t`Data prevista do evento`] : []),
+    ...(!Number.isFinite(parsedAmount) || parsedAmount <= 0
+      ? [t`Valor estimado`]
+      : []),
+    ...(source.length === 0 ? [t`Origem`] : []),
+    ...(requiresQualificationFields && eventType.length === 0
+      ? [t`Tipo de evento`]
+      : []),
+    ...(requiresQualificationFields &&
+    (!Number.isInteger(parsedAudience) || parsedAudience <= 0)
+      ? [t`Público estimado`]
+      : []),
+    ...(requiresQualificationFields && location.trim().length === 0
+      ? [t`Local`]
+      : []),
+    ...(requiresQualificationFields && city.trim().length === 0
+      ? [t`Cidade`]
+      : []),
+    ...(requiresQualificationFields && !isBudgetCompatible
+      ? [t`Orçamento compatível`]
+      : []),
+    ...(requiresAcceptanceFields &&
+    (!isFilled(closedAmount) || !Number.isFinite(parsedClosedAmount))
+      ? [t`Valor fechado`]
+      : []),
+    ...(requiresAcceptanceFields && !isFilled(acceptanceEvidence)
+      ? [t`Evidência do aceite`]
+      : []),
+    ...(requiresProductionFields &&
+    (!isDefined(company) || isLegalNameMissing) &&
+    !isFilled(legalName)
+      ? [t`Razão social`]
+      : []),
+    ...(requiresProductionFields &&
+    (!isDefined(company) || isTaxIdMissing) &&
+    !isFilled(taxId)
+      ? [t`CNPJ`]
+      : []),
+    ...(requiresProductionFields &&
+    (!isDefined(company) || isBillingEmailMissing) &&
+    !isFilled(billingEmail)
+      ? [t`E-mail de faturamento`]
+      : []),
+  ];
+  const getFieldStatus = (isSatisfied: boolean) =>
+    getGateFieldStatus({ isSatisfied, isInherited: false });
 
   const handleConfirm = async () => {
     if (!isFormValid || !isDefined(pendingRequest)) {
@@ -513,180 +572,254 @@ const OpportunityCreateGateModalContent = () => {
       </StyledSectionContainer>
 
       <StyledFields>
-        <SettingsTextInput
-          instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-name`}
-          label="Nome do evento"
-          value={name}
-          onChange={setName}
-          autoFocusOnMount
-          fullWidth
-        />
+        <GateFieldWrapper status={getFieldStatus(name.trim().length > 0)}>
+          <SettingsTextInput
+            instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-name`}
+            label="Nome do evento"
+            value={name}
+            onChange={setName}
+            autoFocusOnMount
+            fullWidth
+          />
+        </GateFieldWrapper>
 
-        <FormSingleRecordPicker
-          label="Empresa"
-          defaultValue={companyId}
-          onChange={(value) => setCompanyId((value as string | null) ?? null)}
-          onCreate={handleCreateCompany}
-          objectNameSingulars={[CoreObjectNameSingular.Company]}
-          isDropdownInModal
-          testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-company`}
-        />
+        <GateFieldWrapper status={getFieldStatus(isDefined(companyId))}>
+          <FormSingleRecordPicker
+            label="Empresa"
+            defaultValue={companyId}
+            onChange={(value) => setCompanyId((value as string | null) ?? null)}
+            onCreate={handleCreateCompany}
+            objectNameSingulars={[CoreObjectNameSingular.Company]}
+            isDropdownInModal
+            testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-company`}
+          />
+        </GateFieldWrapper>
 
-        <FormSingleRecordPicker
-          label="Contato"
-          defaultValue={personId}
-          onChange={(value) => setPersonId((value as string | null) ?? null)}
-          onCreate={handleCreatePerson}
-          objectNameSingulars={[CoreObjectNameSingular.Person]}
-          isDropdownInModal
-          testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-person`}
-        />
+        <GateFieldWrapper status={getFieldStatus(isDefined(personId))}>
+          <FormSingleRecordPicker
+            label="Contato"
+            defaultValue={personId}
+            onChange={(value) => setPersonId((value as string | null) ?? null)}
+            onCreate={handleCreatePerson}
+            objectNameSingulars={[CoreObjectNameSingular.Person]}
+            isDropdownInModal
+            testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-person`}
+          />
+        </GateFieldWrapper>
 
-        <Select
-          dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-modality`}
-          label="Modalidade"
-          value={modality}
-          options={GSH_EVENT_MODALITY_OPTIONS}
-          onChange={setModality}
-          isDropdownInModal
-          fullWidth
-        />
+        <GateFieldWrapper status={getFieldStatus(modality.length > 0)}>
+          <Select
+            dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-modality`}
+            label="Modalidade"
+            value={modality}
+            options={GSH_EVENT_MODALITY_OPTIONS}
+            onChange={setModality}
+            isDropdownInModal
+            fullWidth
+          />
+        </GateFieldWrapper>
 
-        <SettingsTextInput
-          instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-at`}
-          label="Data prevista do evento"
-          type="datetime-local"
-          value={toDateTimeLocalInputValue(eventAt)}
-          onChange={(value) => setEventAt(fromDateTimeLocalInputValue(value))}
-          fullWidth
-        />
+        <GateFieldWrapper status={getFieldStatus(isDefined(eventAt))}>
+          <SettingsTextInput
+            instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-at`}
+            label="Data prevista do evento"
+            type="datetime-local"
+            value={toDateTimeLocalInputValue(eventAt)}
+            onChange={(value) => setEventAt(fromDateTimeLocalInputValue(value))}
+            fullWidth
+          />
+        </GateFieldWrapper>
 
-        <SettingsTextInput
-          instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-amount`}
-          label="Valor estimado (R$)"
-          type="number"
-          min={0}
-          leftAdornment="R$"
-          value={amount}
-          onChange={setAmount}
-          fullWidth
-        />
+        <GateFieldWrapper
+          status={getFieldStatus(
+            Number.isFinite(parsedAmount) && parsedAmount > 0,
+          )}
+        >
+          <SettingsTextInput
+            instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-amount`}
+            label="Valor estimado (R$)"
+            type="number"
+            min={0}
+            leftAdornment="R$"
+            value={amount}
+            onChange={setAmount}
+            fullWidth
+          />
+        </GateFieldWrapper>
 
-        <Select
-          dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-source`}
-          label="Origem"
-          value={source}
-          options={GSH_EVENT_SOURCE_OPTIONS}
-          onChange={setSource}
-          isDropdownInModal
-          fullWidth
-        />
+        <GateFieldWrapper status={getFieldStatus(source.length > 0)}>
+          <Select
+            dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-source`}
+            label="Origem"
+            value={source}
+            options={GSH_EVENT_SOURCE_OPTIONS}
+            onChange={setSource}
+            isDropdownInModal
+            fullWidth
+          />
+        </GateFieldWrapper>
 
         {requiresQualificationFields && (
           <>
-            <Select
-              dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-type`}
-              label="Tipo de evento"
-              value={eventType}
-              options={GSH_EVENT_TYPE_OPTIONS}
-              onChange={setEventType}
-              isDropdownInModal
-              fullWidth
-            />
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-audience`}
-              label="Público estimado"
-              type="number"
-              min={1}
-              value={audience}
-              onChange={setAudience}
-              fullWidth
-            />
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-location`}
-              label="Local"
-              value={location}
-              onChange={setLocation}
-              fullWidth
-            />
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-city`}
-              label="Cidade"
-              value={city}
-              onChange={setCity}
-              fullWidth
-            />
-            <StyledCheckboxRow>
-              <Checkbox
-                checked={isBudgetCompatible}
-                onCheckedChange={setIsBudgetCompatible}
-                aria-label="Orçamento compatível"
+            <GateFieldWrapper status={getFieldStatus(eventType.length > 0)}>
+              <Select
+                dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-type`}
+                label="Tipo de evento"
+                value={eventType}
+                options={GSH_EVENT_TYPE_OPTIONS}
+                onChange={setEventType}
+                isDropdownInModal
+                fullWidth
               />
-              Orçamento compatível
-            </StyledCheckboxRow>
+            </GateFieldWrapper>
+            <GateFieldWrapper
+              status={getFieldStatus(
+                Number.isInteger(parsedAudience) && parsedAudience > 0,
+              )}
+            >
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-audience`}
+                label="Público estimado"
+                type="number"
+                min={1}
+                value={audience}
+                onChange={setAudience}
+                fullWidth
+              />
+            </GateFieldWrapper>
+            <GateFieldWrapper
+              status={getFieldStatus(location.trim().length > 0)}
+            >
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-location`}
+                label="Local"
+                value={location}
+                onChange={setLocation}
+                fullWidth
+              />
+            </GateFieldWrapper>
+            <GateFieldWrapper status={getFieldStatus(city.trim().length > 0)}>
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-city`}
+                label="Cidade"
+                value={city}
+                onChange={setCity}
+                fullWidth
+              />
+            </GateFieldWrapper>
+            <GateFieldWrapper status={getFieldStatus(isBudgetCompatible)}>
+              <StyledCheckboxRow>
+                <Checkbox
+                  checked={isBudgetCompatible}
+                  onCheckedChange={setIsBudgetCompatible}
+                  aria-label="Orçamento compatível"
+                />
+                Orçamento compatível
+              </StyledCheckboxRow>
+            </GateFieldWrapper>
           </>
         )}
 
         {requiresAcceptanceFields && (
           <>
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-closed-amount`}
-              label="Valor fechado (R$)"
-              type="number"
-              min={0}
-              leftAdornment="R$"
-              value={closedAmount}
-              onChange={setClosedAmount}
-              fullWidth
-            />
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-acceptance-evidence`}
-              label="Evidência do aceite"
-              placeholder="Link do e-mail, mensagem ou documento que confirma o aceite"
-              value={acceptanceEvidence}
-              onChange={setAcceptanceEvidence}
-              fullWidth
-            />
+            <GateFieldWrapper
+              status={getFieldStatus(
+                isFilled(closedAmount) && Number.isFinite(parsedClosedAmount),
+              )}
+            >
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-closed-amount`}
+                label="Valor fechado (R$)"
+                type="number"
+                min={0}
+                leftAdornment="R$"
+                value={closedAmount}
+                onChange={setClosedAmount}
+                fullWidth
+              />
+            </GateFieldWrapper>
+            <GateFieldWrapper
+              status={getFieldStatus(isFilled(acceptanceEvidence))}
+            >
+              <SettingsTextInput
+                instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-acceptance-evidence`}
+                label="Evidência do aceite"
+                placeholder="Link do e-mail, mensagem ou documento que confirma o aceite"
+                value={acceptanceEvidence}
+                onChange={setAcceptanceEvidence}
+                fullWidth
+              />
+            </GateFieldWrapper>
           </>
         )}
 
         {requiresProductionFields &&
           isDefined(companyId) &&
-          !isLoadingCompany &&
-          isLegalNameMissing && (
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-legal-name`}
-              label="Razão social"
-              value={legalName}
-              onChange={setLegalName}
-              fullWidth
-            />
-          )}
-        {requiresProductionFields &&
-          isDefined(companyId) &&
-          !isLoadingCompany &&
-          isTaxIdMissing && (
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-tax-id`}
-              label="CNPJ"
-              value={taxId}
-              onChange={setTaxId}
-              fullWidth
-            />
-          )}
-        {requiresProductionFields &&
-          isDefined(companyId) &&
-          !isLoadingCompany &&
-          isBillingEmailMissing && (
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-billing-email`}
-              label="E-mail de faturamento"
-              value={billingEmail}
-              onChange={setBillingEmail}
-              fullWidth
-            />
+          !isLoadingCompany && (
+            <>
+              {isLegalNameMissing ? (
+                <GateFieldWrapper status={getFieldStatus(isFilled(legalName))}>
+                  <SettingsTextInput
+                    instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-legal-name`}
+                    label="Razão social"
+                    value={legalName}
+                    onChange={setLegalName}
+                    fullWidth
+                  />
+                </GateFieldWrapper>
+              ) : (
+                <GateFieldWrapper status="inherited">
+                  <StyledInheritedValue>
+                    {t`Razão social`}: {company?.legalName}
+                  </StyledInheritedValue>
+                </GateFieldWrapper>
+              )}
+              {isTaxIdMissing ? (
+                <GateFieldWrapper status={getFieldStatus(isFilled(taxId))}>
+                  <SettingsTextInput
+                    instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-tax-id`}
+                    label="CNPJ"
+                    value={taxId}
+                    onChange={setTaxId}
+                    fullWidth
+                  />
+                </GateFieldWrapper>
+              ) : (
+                <GateFieldWrapper status="inherited">
+                  <StyledInheritedValue>
+                    {t`CNPJ`}: {company?.taxId}
+                  </StyledInheritedValue>
+                </GateFieldWrapper>
+              )}
+              {isBillingEmailMissing ? (
+                <GateFieldWrapper
+                  status={getFieldStatus(isFilled(billingEmail))}
+                >
+                  <SettingsTextInput
+                    instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-billing-email`}
+                    label="E-mail de faturamento"
+                    value={billingEmail}
+                    onChange={setBillingEmail}
+                    fullWidth
+                  />
+                </GateFieldWrapper>
+              ) : (
+                <GateFieldWrapper status="inherited">
+                  <StyledInheritedValue>
+                    {t`E-mail de faturamento`}: {company?.billingEmail}
+                  </StyledInheritedValue>
+                </GateFieldWrapper>
+              )}
+            </>
           )}
       </StyledFields>
+
+      {!isFormValid && (
+        <GateRequirementSummary
+          missingRequirementLabels={missingRequirementLabels}
+          isLoading={requiresProductionFields && isLoadingCompany}
+        />
+      )}
 
       <StyledModalActions>
         <Button

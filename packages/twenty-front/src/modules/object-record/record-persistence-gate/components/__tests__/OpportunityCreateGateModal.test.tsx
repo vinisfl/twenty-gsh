@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { type ReactNode } from 'react';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
@@ -17,6 +18,22 @@ const mockCreateEventProposal = jest.fn();
 const mockCreateTask = jest.fn();
 const mockCreateTaskTarget = jest.fn();
 const mockUpdateOneRecord = jest.fn();
+
+jest.mock('@lingui/react/macro', () => ({
+  useLingui: () => ({
+    i18n: {
+      _: ({ id, message }: { id: string; message?: string }) => message ?? id,
+    },
+  }),
+}));
+
+jest.mock('@lingui/react', () => ({
+  useLingui: () => ({
+    i18n: {
+      _: ({ id, message }: { id: string; message?: string }) => message ?? id,
+    },
+  }),
+}));
 
 jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
   useCreateOneRecord: ({
@@ -132,6 +149,20 @@ jest.mock('@/ui/input/components/Select', () => ({
     </select>
   ),
 }));
+
+jest.mock(
+  '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper',
+  () => ({
+    GateFieldWrapper: ({ children }: { children: ReactNode }) => children,
+  }),
+);
+
+jest.mock(
+  '@/object-record/record-persistence-gate/components/GateRequirementSummary',
+  () => ({
+    GateRequirementSummary: () => null,
+  }),
+);
 
 const Wrapper = getJestMetadataAndApolloMocksWrapper({
   apolloMocks: [],

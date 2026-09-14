@@ -11,6 +11,8 @@ import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
+import { GateRequirementSummary } from '@/object-record/record-persistence-gate/components/GateRequirementSummary';
+import { GateFieldWrapper } from '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { OPPORTUNITY_CLOSED_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityClosedGateModalId';
@@ -19,6 +21,7 @@ import { opportunityStageAdvancePendingRequestState } from '@/object-record/reco
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsProductionToClosedStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsProductionToClosedStageAdvance';
 import { getProductionToClosedGateRequirements } from '@/object-record/record-persistence-gate/utils/getProductionToClosedGateRequirements';
+import { getGateFieldStatus } from '@/object-record/record-persistence-gate/utils/getGateFieldStatus';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { Select } from '@/ui/input/components/Select';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
@@ -247,6 +250,25 @@ const OpportunityClosedGateModalContent = () => {
     isDefined(opportunity) &&
     isDefined(corporateEvent) &&
     isOwnPendingRequest;
+  const missingRequirementLabels = gateRequirements.missingRequirementKeys.map(
+    (key) =>
+      ({
+        contractSigned: t`Contrato assinado`,
+        executionCompleted: t`Execução concluída`,
+        assemblyReady: t`Montagem`,
+        travelReady: t`Deslocamento`,
+        supplyReady: t`Abastecimento`,
+        teamReady: t`Equipe`,
+      })[key],
+  );
+  const getRequirementStatus = (
+    key: (typeof gateRequirements.missingRequirementKeys)[number],
+    isInherited: boolean,
+  ) =>
+    getGateFieldStatus({
+      isSatisfied: !gateRequirements.missingRequirementKeys.includes(key),
+      isInherited,
+    });
 
   const handleConfirm = async () => {
     if (
@@ -345,61 +367,110 @@ const OpportunityClosedGateModalContent = () => {
         </Section>
       ) : (
         <StyledFields>
-          <Select
-            dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-contract-status`}
-            label={t`Contrato`}
-            value={contractStatus}
-            options={contractStatusOptions}
-            onChange={setContractStatus}
-            isDropdownInModal
-            fullWidth
-          />
-          <Select
-            dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-execution-status`}
-            label={t`Status da execução`}
-            value={executionStatus}
-            options={executionStatusOptions}
-            onChange={setExecutionStatus}
-            isDropdownInModal
-            fullWidth
-          />
-          <Select
-            dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-assembly-status`}
-            label={t`Montagem`}
-            value={assemblyStatus}
-            options={assemblyStatusOptions}
-            onChange={setAssemblyStatus}
-            isDropdownInModal
-            fullWidth
-          />
-          <Select
-            dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-travel-status`}
-            label={t`Deslocamento`}
-            value={travelStatus}
-            options={travelStatusOptions}
-            onChange={setTravelStatus}
-            isDropdownInModal
-            fullWidth
-          />
-          <Select
-            dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-supply-status`}
-            label={t`Abastecimento`}
-            value={supplyStatus}
-            options={supplyStatusOptions}
-            onChange={setSupplyStatus}
-            isDropdownInModal
-            fullWidth
-          />
-          <Select
-            dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-team-status`}
-            label={t`Equipe`}
-            value={teamStatus}
-            options={teamStatusOptions}
-            onChange={setTeamStatus}
-            isDropdownInModal
-            fullWidth
-          />
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'contractSigned',
+              contractStatus === (opportunity?.contractStatus ?? ''),
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-contract-status`}
+              label={t`Contrato`}
+              value={contractStatus}
+              options={contractStatusOptions}
+              onChange={setContractStatus}
+              isDropdownInModal
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'executionCompleted',
+              executionStatus === (corporateEvent?.executionStatus ?? ''),
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-execution-status`}
+              label={t`Status da execução`}
+              value={executionStatus}
+              options={executionStatusOptions}
+              onChange={setExecutionStatus}
+              isDropdownInModal
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'assemblyReady',
+              assemblyStatus === (corporateEvent?.assemblyStatus ?? ''),
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-assembly-status`}
+              label={t`Montagem`}
+              value={assemblyStatus}
+              options={assemblyStatusOptions}
+              onChange={setAssemblyStatus}
+              isDropdownInModal
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'travelReady',
+              travelStatus === (corporateEvent?.travelStatus ?? ''),
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-travel-status`}
+              label={t`Deslocamento`}
+              value={travelStatus}
+              options={travelStatusOptions}
+              onChange={setTravelStatus}
+              isDropdownInModal
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'supplyReady',
+              supplyStatus === (corporateEvent?.supplyStatus ?? ''),
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-supply-status`}
+              label={t`Abastecimento`}
+              value={supplyStatus}
+              options={supplyStatusOptions}
+              onChange={setSupplyStatus}
+              isDropdownInModal
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'teamReady',
+              teamStatus === (corporateEvent?.teamStatus ?? ''),
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_CLOSED_GATE_MODAL_ID}-team-status`}
+              label={t`Equipe`}
+              value={teamStatus}
+              options={teamStatusOptions}
+              onChange={setTeamStatus}
+              isDropdownInModal
+              fullWidth
+            />
+          </GateFieldWrapper>
         </StyledFields>
+      )}
+
+      {!isFormValid && (
+        <GateRequirementSummary
+          missingRequirementLabels={missingRequirementLabels}
+          isLoading={isLoading}
+        />
       )}
 
       <StyledModalActions>

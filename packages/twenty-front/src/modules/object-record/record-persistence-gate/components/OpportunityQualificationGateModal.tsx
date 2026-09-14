@@ -12,6 +12,8 @@ import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
+import { GateRequirementSummary } from '@/object-record/record-persistence-gate/components/GateRequirementSummary';
+import { GateFieldWrapper } from '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
@@ -21,6 +23,7 @@ import { opportunityStageAdvancePendingRequestState } from '@/object-record/reco
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsQualificationToProposalStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsQualificationToProposalStageAdvance';
 import { getQualificationToProposalGateRequirements } from '@/object-record/record-persistence-gate/utils/getQualificationToProposalGateRequirements';
+import { getGateFieldStatus } from '@/object-record/record-persistence-gate/utils/getGateFieldStatus';
 import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
 import { Select } from '@/ui/input/components/Select';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
@@ -251,6 +254,26 @@ const OpportunityQualificationGateModalContent = () => {
     isBudgetCompatible &&
     isDefined(opportunity) &&
     isDefined(pendingRequest);
+  const missingRequirementLabels = gateRequirements.missingRequirementKeys.map(
+    (key) =>
+      ({
+        eventType: t`Tipo de evento`,
+        audience: t`Público estimado`,
+        location: t`Local`,
+        city: t`Cidade`,
+        eventAt: t`Data do evento`,
+        amount: t`Valor estimado`,
+        budgetCompatible: t`Orçamento compatível`,
+      })[key],
+  );
+  const getRequirementStatus = (
+    key: (typeof gateRequirements.missingRequirementKeys)[number],
+    isInherited: boolean,
+  ) =>
+    getGateFieldStatus({
+      isSatisfied: !gateRequirements.missingRequirementKeys.includes(key),
+      isInherited,
+    });
 
   const handleConfirm = async () => {
     if (
@@ -365,67 +388,130 @@ const OpportunityQualificationGateModalContent = () => {
         </Section>
       ) : (
         <StyledFields>
-          <Select
-            dropdownId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-event-type`}
-            label={t`Tipo de evento`}
-            value={eventType}
-            options={eventTypeOptions}
-            onChange={setEventType}
-            isDropdownInModal
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-audience`}
-            label={t`Público estimado`}
-            type="number"
-            min={1}
-            value={audience}
-            onChange={setAudience}
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-location`}
-            label={t`Local`}
-            value={location}
-            onChange={setLocation}
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-city`}
-            label={t`Cidade`}
-            value={city}
-            onChange={setCity}
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-event-at`}
-            label={t`Data do evento`}
-            type="datetime-local"
-            value={eventAt ? eventAt.slice(0, 16) : ''}
-            onChange={(value) =>
-              setEventAt(value ? new Date(value).toISOString() : '')
-            }
-            fullWidth
-          />
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-amount`}
-            label={t`Valor estimado (R$)`}
-            type="number"
-            min={0}
-            leftAdornment="R$"
-            value={amount}
-            onChange={setAmount}
-            fullWidth
-          />
-          <StyledCheckboxRow>
-            <Checkbox
-              checked={isBudgetCompatible}
-              onCheckedChange={setIsBudgetCompatible}
-              aria-label={t`Orçamento compatível`}
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'eventType',
+              eventType === corporateEvent?.eventType,
+            )}
+          >
+            <Select
+              dropdownId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-event-type`}
+              label={t`Tipo de evento`}
+              value={eventType}
+              options={eventTypeOptions}
+              onChange={setEventType}
+              isDropdownInModal
+              fullWidth
             />
-            {t`Orçamento compatível`}
-          </StyledCheckboxRow>
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'audience',
+              audience ===
+                (isDefined(opportunity?.eventAudience)
+                  ? String(opportunity.eventAudience)
+                  : ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-audience`}
+              label={t`Público estimado`}
+              type="number"
+              min={1}
+              value={audience}
+              onChange={setAudience}
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'location',
+              location === (opportunity?.eventLocation ?? ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-location`}
+              label={t`Local`}
+              value={location}
+              onChange={setLocation}
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'city',
+              city === (corporateEvent?.city ?? ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-city`}
+              label={t`Cidade`}
+              value={city}
+              onChange={setCity}
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'eventAt',
+              eventAt === (opportunity?.eventAt ?? ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-event-at`}
+              label={t`Data do evento`}
+              type="datetime-local"
+              value={eventAt ? eventAt.slice(0, 16) : ''}
+              onChange={(value) =>
+                setEventAt(value ? new Date(value).toISOString() : '')
+              }
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'amount',
+              amount ===
+                (isDefined(opportunity?.amount?.amountMicros)
+                  ? String(opportunity.amount.amountMicros / 1_000_000)
+                  : ''),
+            )}
+          >
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-amount`}
+              label={t`Valor estimado (R$)`}
+              type="number"
+              min={0}
+              leftAdornment="R$"
+              value={amount}
+              onChange={setAmount}
+              fullWidth
+            />
+          </GateFieldWrapper>
+          <GateFieldWrapper
+            status={getRequirementStatus(
+              'budgetCompatible',
+              isBudgetCompatible ===
+                (opportunity?.eventBudgetCompatible ?? false),
+            )}
+          >
+            <StyledCheckboxRow>
+              <Checkbox
+                checked={isBudgetCompatible}
+                onCheckedChange={setIsBudgetCompatible}
+                aria-label={t`Orçamento compatível`}
+              />
+              {t`Orçamento compatível`}
+            </StyledCheckboxRow>
+          </GateFieldWrapper>
         </StyledFields>
+      )}
+
+      {!isFormValid && (
+        <GateRequirementSummary
+          missingRequirementLabels={missingRequirementLabels}
+          isLoading={isLoading}
+        />
       )}
 
       <StyledModalActions>
