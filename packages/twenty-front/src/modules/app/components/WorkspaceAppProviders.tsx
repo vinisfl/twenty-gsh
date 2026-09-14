@@ -21,6 +21,7 @@ import { MinimalMetadataLoadEffect } from '@/metadata-store/effect-components/Mi
 import { UserMetadataProviderInitialEffect } from '@/metadata-store/effect-components/UserMetadataProviderInitialEffect';
 import { ApolloCoreProvider } from '@/object-metadata/components/ApolloCoreProvider';
 import { OpportunityAcceptanceGateModal } from '@/object-record/record-persistence-gate/components/OpportunityAcceptanceGateModal';
+import { OpportunityClosedGateModal } from '@/object-record/record-persistence-gate/components/OpportunityClosedGateModal';
 import { OpportunityCreateGateModal } from '@/object-record/record-persistence-gate/components/OpportunityCreateGateModal';
 import { OpportunityFormalizationChainGateHandler } from '@/object-record/record-persistence-gate/components/OpportunityFormalizationChainGateHandler';
 import { OpportunityLostCancelledGateModal } from '@/object-record/record-persistence-gate/components/OpportunityLostCancelledGateModal';
@@ -81,6 +82,7 @@ export const WorkspaceAppProviders = () => {
                             <OpportunityQualificationGateModal />
                             <OpportunityAcceptanceGateModal />
                             <OpportunityProductionGateModal />
+                            <OpportunityClosedGateModal />
                             <OpportunityLostCancelledGateModal />
                             <OpportunityFormalizationChainGateHandler />
                             <CommandMenuConfirmationModalManager />
