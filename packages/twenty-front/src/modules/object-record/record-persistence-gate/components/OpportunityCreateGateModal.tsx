@@ -81,6 +81,14 @@ const StyledInheritedValue = styled.div`
   color: ${themeCssVariables.font.color.secondary};
 `;
 
+const StyledGateSectionTitle = styled.div`
+  border-top: 1px solid ${themeCssVariables.border.color.light};
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.sm};
+  font-weight: ${themeCssVariables.font.weight.semiBold};
+  padding-top: ${themeCssVariables.spacing[4]};
+`;
+
 type CompanyFiscalRecord = ObjectRecord & {
   legalName: string | null;
   taxId: string | null;
@@ -661,6 +669,7 @@ const OpportunityCreateGateModalContent = () => {
 
         {requiresQualificationFields && (
           <>
+            <StyledGateSectionTitle>{t`Qualificação`}</StyledGateSectionTitle>
             <GateFieldWrapper status={getFieldStatus(eventType.length > 0)}>
               <Select
                 dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-type`}
@@ -722,6 +731,7 @@ const OpportunityCreateGateModalContent = () => {
 
         {requiresAcceptanceFields && (
           <>
+            <StyledGateSectionTitle>{t`Aceite e cadastro`}</StyledGateSectionTitle>
             <GateFieldWrapper
               status={getFieldStatus(
                 isFilled(closedAmount) && Number.isFinite(parsedClosedAmount),
@@ -757,6 +767,7 @@ const OpportunityCreateGateModalContent = () => {
           isDefined(companyId) &&
           !isLoadingCompany && (
             <>
+              <StyledGateSectionTitle>{t`Dados fiscais`}</StyledGateSectionTitle>
               {isLegalNameMissing ? (
                 <GateFieldWrapper status={getFieldStatus(isFilled(legalName))}>
                   <SettingsTextInput

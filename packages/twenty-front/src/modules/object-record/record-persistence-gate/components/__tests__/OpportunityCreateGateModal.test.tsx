@@ -395,6 +395,9 @@ describe('OpportunityCreateGateModal', () => {
       expect(
         screen.queryByLabelText('Valor fechado (R$)'),
       ).not.toBeInTheDocument();
+      expect(screen.queryByText('Qualificação')).not.toBeInTheDocument();
+      expect(screen.queryByText('Aceite e cadastro')).not.toBeInTheDocument();
+      expect(screen.queryByText('Dados fiscais')).not.toBeInTheDocument();
     });
 
     it('requires the qualification-gate fields, creates the corporate event, and skips the retroactive task when created in Proposta e negociação', async () => {
@@ -443,6 +446,43 @@ describe('OpportunityCreateGateModal', () => {
         expect.objectContaining({
           title: 'Fazer contato inicial e capturar briefing',
         }),
+      );
+    });
+
+    it('groups the cumulative fields under a section heading per skipped gate, in funnel-stage order', () => {
+      companyRecords = [
+        {
+          id: 'company-1',
+          legalName: null,
+          taxId: null,
+          billingEmail: null,
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({
+          recordInput: { eventProcessStage: 'PRODUCTION_FORMALIZATION_EVENT' },
+        });
+      });
+
+      fireEvent.click(
+        screen.getByTestId('opportunity-create-gate-modal-company'),
+      );
+
+      const headings = [
+        'Qualificação',
+        'Aceite e cadastro',
+        'Dados fiscais',
+      ].map((label) => screen.getByText(label));
+
+      expect(headings[0].compareDocumentPosition(headings[1])).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(headings[1].compareDocumentPosition(headings[2])).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
       );
     });
 
@@ -526,6 +566,7 @@ describe('OpportunityCreateGateModal', () => {
       expect(
         screen.queryByLabelText('E-mail de faturamento'),
       ).not.toBeInTheDocument();
+      expect(screen.getByText('Dados fiscais')).toBeInTheDocument();
       expect(getCreateButton()).toBeDisabled();
 
       fireEvent.change(screen.getByLabelText('Razão social'), {
