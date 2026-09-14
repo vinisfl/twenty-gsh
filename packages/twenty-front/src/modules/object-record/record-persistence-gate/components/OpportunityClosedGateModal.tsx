@@ -118,26 +118,17 @@ const OpportunityClosedGateModalContent = () => {
     { value: 'IN_PROGRESS', label: t`Em execução` },
     { value: 'COMPLETED', label: t`Concluída` },
   ];
-  const assemblyStatusOptions = [
+  // Shared by all four logistics checklist fields — only the gender
+  // agreement of the "ready" label varies (Pronta/Pronto).
+  const getChecklistStatusOptions = (readyLabel: string) => [
     { value: 'NOT_APPLICABLE', label: t`Não aplicável` },
     { value: 'PENDING', label: t`Pendente` },
-    { value: 'READY', label: t`Pronta` },
+    { value: 'READY', label: readyLabel },
   ];
-  const travelStatusOptions = [
-    { value: 'NOT_APPLICABLE', label: t`Não aplicável` },
-    { value: 'PENDING', label: t`Pendente` },
-    { value: 'READY', label: t`Pronto` },
-  ];
-  const supplyStatusOptions = [
-    { value: 'NOT_APPLICABLE', label: t`Não aplicável` },
-    { value: 'PENDING', label: t`Pendente` },
-    { value: 'READY', label: t`Pronto` },
-  ];
-  const teamStatusOptions = [
-    { value: 'NOT_APPLICABLE', label: t`Não aplicável` },
-    { value: 'PENDING', label: t`Pendente` },
-    { value: 'READY', label: t`Pronta` },
-  ];
+  const assemblyStatusOptions = getChecklistStatusOptions(t`Pronta`);
+  const travelStatusOptions = getChecklistStatusOptions(t`Pronto`);
+  const supplyStatusOptions = getChecklistStatusOptions(t`Pronto`);
+  const teamStatusOptions = getChecklistStatusOptions(t`Pronta`);
 
   const [contractStatus, setContractStatus] = useState('');
   const [executionStatus, setExecutionStatus] = useState('');
