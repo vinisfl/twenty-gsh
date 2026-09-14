@@ -19,8 +19,10 @@ import { OPPORTUNITY_PRODUCTION_GATE_MODAL_ID } from '@/object-record/record-per
 import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/hooks/useRegisterOpportunityStageAdvanceGateHandler';
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
+import { getAcceptanceToProductionGateRequirements } from '@/object-record/record-persistence-gate/utils/getAcceptanceToProductionGateRequirements';
 import { getIsAcceptanceToProductionStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsAcceptanceToProductionStageAdvance';
 import { isFilled } from '@/object-record/record-persistence-gate/utils/isFilled';
+import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
@@ -210,19 +212,19 @@ const OpportunityProductionGateModalContent = () => {
     resetForm();
   };
 
-  const parsedClosedAmount = Number(closedAmount);
-  const isClosedAmountFilled =
-    isFilled(closedAmount) && Number.isFinite(parsedClosedAmount);
-  const isEvidenceFilled = isFilled(acceptanceEvidence);
+  const closedAmountDraft = toMonetaryAmountDraft(closedAmount);
+  const gateRequirements = getAcceptanceToProductionGateRequirements({
+    opportunity: {
+      eventClosedAmount: closedAmountDraft,
+      eventAcceptanceEvidence: acceptanceEvidence,
+    },
+    company: { legalName, taxId, billingEmail },
+  });
 
   const isFormValid =
-    isClosedAmountFilled &&
-    isEvidenceFilled &&
+    gateRequirements.isSatisfied &&
     isDefined(opportunity) &&
     isDefined(company) &&
-    (!isLegalNameMissing || isFilled(legalName)) &&
-    (!isTaxIdMissing || isFilled(taxId)) &&
-    (!isBillingEmailMissing || isFilled(billingEmail)) &&
     isOwnPendingRequest;
 
   const handleConfirm = async () => {
@@ -230,7 +232,8 @@ const OpportunityProductionGateModalContent = () => {
       !isFormValid ||
       !isDefined(pendingRequest) ||
       !isDefined(opportunity) ||
-      !isDefined(company)
+      !isDefined(company) ||
+      !isDefined(closedAmountDraft)
     ) {
       return;
     }
@@ -275,7 +278,7 @@ const OpportunityProductionGateModalContent = () => {
         updateOneRecordInput: {
           eventProcessStage: pendingRequest.destinationStageValue,
           eventClosedAmount: {
-            amountMicros: Math.round(parsedClosedAmount * 1_000_000),
+            amountMicros: closedAmountDraft.amountMicros,
             currencyCode: 'BRL',
           },
           eventAcceptanceEvidence: acceptanceEvidence.trim(),

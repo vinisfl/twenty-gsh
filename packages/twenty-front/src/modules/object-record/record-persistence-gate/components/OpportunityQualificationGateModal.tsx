@@ -20,6 +20,8 @@ import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/r
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsQualificationToProposalStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsQualificationToProposalStageAdvance';
+import { getQualificationToProposalGateRequirements } from '@/object-record/record-persistence-gate/utils/getQualificationToProposalGateRequirements';
+import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
 import { Select } from '@/ui/input/components/Select';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
@@ -232,22 +234,29 @@ const OpportunityQualificationGateModalContent = () => {
   };
 
   const parsedAudience = Number(audience);
-  const parsedAmount = Number(amount);
+  const amountDraft = toMonetaryAmountDraft(amount);
+  const gateRequirements = getQualificationToProposalGateRequirements({
+    opportunity: {
+      eventAudience: parsedAudience,
+      eventLocation: location,
+      eventAt,
+      amount: amountDraft,
+    },
+    corporateEvent: { eventType, city },
+  });
   const isFormValid =
-    eventType.length > 0 &&
-    Number.isInteger(parsedAudience) &&
-    parsedAudience > 0 &&
-    location.trim().length > 0 &&
-    city.trim().length > 0 &&
-    eventAt.length > 0 &&
-    Number.isFinite(parsedAmount) &&
-    parsedAmount > 0 &&
+    gateRequirements.isSatisfied &&
     isBudgetCompatible &&
     isDefined(opportunity) &&
     isDefined(pendingRequest);
 
   const handleConfirm = async () => {
-    if (!isFormValid || !isDefined(pendingRequest) || !isDefined(opportunity)) {
+    if (
+      !isFormValid ||
+      !isDefined(pendingRequest) ||
+      !isDefined(opportunity) ||
+      !isDefined(amountDraft)
+    ) {
       return;
     }
 
@@ -296,7 +305,7 @@ const OpportunityQualificationGateModalContent = () => {
           eventLocation: location.trim(),
           eventAt,
           amount: {
-            amountMicros: Math.round(parsedAmount * 1_000_000),
+            amountMicros: amountDraft.amountMicros,
             currencyCode: 'BRL',
           },
         },

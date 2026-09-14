@@ -18,6 +18,7 @@ import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/r
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsProductionToClosedStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsProductionToClosedStageAdvance';
+import { getProductionToClosedGateRequirements } from '@/object-record/record-persistence-gate/utils/getProductionToClosedGateRequirements';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { Select } from '@/ui/input/components/Select';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
@@ -62,12 +63,6 @@ type CorporateEventRecord = ObjectRecord & {
   supplyStatus: string | null;
   teamStatus: string | null;
 };
-
-// Mirrors the checklist status values declared in gsh-events'
-// event.object.ts (assemblyStatus/travelStatus/supplyStatus/teamStatus):
-// only "Pronto"/"Pronta" and "Não aplicável" satisfy the gate.
-const isChecklistItemReady = (value: string | null | undefined): boolean =>
-  value === 'READY' || value === 'NOT_APPLICABLE';
 
 export const OpportunityClosedGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
@@ -235,13 +230,19 @@ const OpportunityClosedGateModalContent = () => {
     resetForm();
   };
 
+  const gateRequirements = getProductionToClosedGateRequirements({
+    opportunity: { contractStatus },
+    corporateEvent: {
+      executionStatus,
+      assemblyStatus,
+      travelStatus,
+      supplyStatus,
+      teamStatus,
+    },
+  });
+
   const isFormValid =
-    contractStatus === 'SIGNED' &&
-    executionStatus === 'COMPLETED' &&
-    isChecklistItemReady(assemblyStatus) &&
-    isChecklistItemReady(travelStatus) &&
-    isChecklistItemReady(supplyStatus) &&
-    isChecklistItemReady(teamStatus) &&
+    gateRequirements.isSatisfied &&
     isDefined(opportunity) &&
     isDefined(corporateEvent) &&
     isOwnPendingRequest;

@@ -20,6 +20,8 @@ import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/r
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsProposalToAcceptanceStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsProposalToAcceptanceStageAdvance';
+import { getProposalToAcceptanceGateRequirements } from '@/object-record/record-persistence-gate/utils/getProposalToAcceptanceGateRequirements';
+import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { Select } from '@/ui/input/components/Select';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
@@ -210,16 +212,17 @@ const OpportunityAcceptanceGateModalContent = () => {
     resetForm();
   };
 
-  const parsedClosedAmount = Number(closedAmount);
-  const isProposalAccepted = proposalStatus === 'ACCEPTED';
-  const isClosedAmountFilled =
-    closedAmount.trim().length > 0 && Number.isFinite(parsedClosedAmount);
-  const isEvidenceFilled = acceptanceEvidence.trim().length > 0;
+  const closedAmountDraft = toMonetaryAmountDraft(closedAmount);
+  const gateRequirements = getProposalToAcceptanceGateRequirements({
+    opportunity: {
+      eventClosedAmount: closedAmountDraft,
+      eventAcceptanceEvidence: acceptanceEvidence,
+    },
+    latestProposal: { status: proposalStatus },
+  });
 
   const isFormValid =
-    isProposalAccepted &&
-    isClosedAmountFilled &&
-    isEvidenceFilled &&
+    gateRequirements.isSatisfied &&
     isDefined(opportunity) &&
     isDefined(latestProposal) &&
     isOwnPendingRequest;
@@ -229,7 +232,8 @@ const OpportunityAcceptanceGateModalContent = () => {
       !isFormValid ||
       !isDefined(pendingRequest) ||
       !isDefined(opportunity) ||
-      !isDefined(latestProposal)
+      !isDefined(latestProposal) ||
+      !isDefined(closedAmountDraft)
     ) {
       return;
     }
@@ -262,7 +266,7 @@ const OpportunityAcceptanceGateModalContent = () => {
         updateOneRecordInput: {
           eventProcessStage: pendingRequest.destinationStageValue,
           eventClosedAmount: {
-            amountMicros: Math.round(parsedClosedAmount * 1_000_000),
+            amountMicros: closedAmountDraft.amountMicros,
             currencyCode: 'BRL',
           },
           eventAcceptanceEvidence: acceptanceEvidence.trim(),
