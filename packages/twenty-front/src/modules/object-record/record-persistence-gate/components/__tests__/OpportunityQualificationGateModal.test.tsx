@@ -301,6 +301,7 @@ describe('OpportunityQualificationGateModal', () => {
           eventAudience: 80,
           eventLocation: 'Casa GSH',
           amount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
+          eventBudgetCompatible: true,
         }),
       }),
     );

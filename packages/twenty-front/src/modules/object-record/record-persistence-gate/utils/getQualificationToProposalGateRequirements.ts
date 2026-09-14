@@ -11,13 +11,15 @@ export type QualificationToProposalGateRequirementKey =
   | 'location'
   | 'city'
   | 'eventAt'
-  | 'amount';
+  | 'amount'
+  | 'budgetCompatible';
 
 type QualificationToProposalGateOpportunity = {
   eventAudience: number | null | undefined;
   eventLocation: string | null | undefined;
   eventAt: string | null | undefined;
   amount: MonetaryAmountDraft | null | undefined;
+  eventBudgetCompatible: boolean | null | undefined;
 };
 
 type QualificationToProposalGateCorporateEvent = {
@@ -46,6 +48,7 @@ export const getQualificationToProposalGateRequirements = ({
       city: isFilled(corporateEvent?.city),
       eventAt: isFilled(opportunity?.eventAt),
       amount: isDefined(amountMicros) && amountMicros > 0,
+      budgetCompatible: opportunity?.eventBudgetCompatible === true,
     },
   );
 };

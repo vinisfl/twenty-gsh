@@ -12,6 +12,7 @@ import { RecordBoardCardCellEditModePortal } from '@/object-record/record-board/
 import { RecordBoardCardCellHoveredPortal } from '@/object-record/record-board/record-board-card/anchored-portal/components/RecordBoardCardCellHoveredPortal';
 import { RecordBoardCardBody } from '@/object-record/record-board/record-board-card/components/RecordBoardCardBody';
 import { RecordBoardCardHeader } from '@/object-record/record-board/record-board-card/components/RecordBoardCardHeader';
+import { OpportunityStageReadinessIndicator } from '@/object-record/record-persistence-gate/components/OpportunityStageReadinessIndicator';
 import { RecordDragMultiDragStack } from '@/object-record/record-drag/components/RecordDragMultiDragStack';
 import { RECORD_BOARD_CARD_CLICK_OUTSIDE_ID } from '@/object-record/record-board/record-board-card/constants/RecordBoardCardClickOutsideId';
 import { RECORD_BOARD_CARD_INPUT_ID_PREFIX } from '@/object-record/record-board/record-board-card/constants/RecordBoardCardInputIdPrefix';
@@ -193,6 +194,7 @@ export const RecordBoardCard = () => {
               isDragging={isDraggingThisCard}
             >
               <RecordBoardCardHeader />
+              <OpportunityStageReadinessIndicator />
               <AnimatedEaseInOut
                 isOpen={recordBoardCardIsExpanded || !isCompactModeActive}
                 initial={false}

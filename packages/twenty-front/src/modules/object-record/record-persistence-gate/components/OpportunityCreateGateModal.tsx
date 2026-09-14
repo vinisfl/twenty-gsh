@@ -365,6 +365,7 @@ const OpportunityCreateGateModalContent = () => {
         ...(requiresQualificationFields && {
           eventAudience: parsedAudience,
           eventLocation: location.trim(),
+          eventBudgetCompatible: isBudgetCompatible,
         }),
         ...(requiresAcceptanceFields && {
           eventClosedAmount: {

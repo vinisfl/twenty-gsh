@@ -20,6 +20,7 @@ import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/r
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsProposalToAcceptanceStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsProposalToAcceptanceStageAdvance';
+import { getLatestProposal } from '@/object-record/record-persistence-gate/utils/getLatestProposal';
 import { getProposalToAcceptanceGateRequirements } from '@/object-record/record-persistence-gate/utils/getProposalToAcceptanceGateRequirements';
 import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
@@ -62,13 +63,6 @@ type ProposalRecord = ObjectRecord & {
   version: number | null;
   status: string | null;
 };
-
-const getLatestProposal = (
-  proposals: ProposalRecord[],
-): ProposalRecord | undefined =>
-  [...proposals].sort(
-    (left, right) => (right.version ?? 0) - (left.version ?? 0),
-  )[0];
 
 export const OpportunityAcceptanceGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
@@ -140,6 +134,8 @@ const OpportunityAcceptanceGateModalContent = () => {
     useFindManyRecords<ProposalRecord>({
       objectNameSingular: 'eventProposal',
       filter: { opportunityId: { eq: pendingRequest?.recordId } },
+      orderBy: [{ version: 'DescNullsLast' }],
+      limit: 1,
       skip: !isOwnPendingRequest,
     });
 

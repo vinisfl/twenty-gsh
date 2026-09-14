@@ -8,6 +8,7 @@ describe('getQualificationToProposalGateRequirements', () => {
         eventLocation: 'Salão Jardim',
         eventAt: '2026-10-01T18:00:00.000Z',
         amount: { amountMicros: 15_000_000_000 },
+        eventBudgetCompatible: true,
       },
       corporateEvent: { eventType: 'COCKTAIL', city: 'São Paulo' },
     });
@@ -21,6 +22,7 @@ describe('getQualificationToProposalGateRequirements', () => {
         'city',
         'eventAt',
         'amount',
+        'budgetCompatible',
       ],
       missingRequirementKeys: [],
     });
@@ -42,6 +44,7 @@ describe('getQualificationToProposalGateRequirements', () => {
         'city',
         'eventAt',
         'amount',
+        'budgetCompatible',
       ],
     });
   });
@@ -53,6 +56,7 @@ describe('getQualificationToProposalGateRequirements', () => {
         eventLocation: 'Salão Jardim',
         eventAt: '',
         amount: { amountMicros: 15_000_000_000 },
+        eventBudgetCompatible: false,
       },
       corporateEvent: { eventType: 'COCKTAIL', city: '' },
     });
@@ -60,7 +64,12 @@ describe('getQualificationToProposalGateRequirements', () => {
     expect(result).toEqual({
       isSatisfied: false,
       metRequirementKeys: ['eventType', 'location', 'amount'],
-      missingRequirementKeys: ['audience', 'city', 'eventAt'],
+      missingRequirementKeys: [
+        'audience',
+        'city',
+        'eventAt',
+        'budgetCompatible',
+      ],
     });
   });
 });

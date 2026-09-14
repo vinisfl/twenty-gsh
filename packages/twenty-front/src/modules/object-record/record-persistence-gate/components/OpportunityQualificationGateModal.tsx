@@ -127,6 +127,7 @@ const OpportunityQualificationGateModalContent = () => {
     useFindManyRecords({
       objectNameSingular: 'corporateEvent',
       filter: { opportunityId: { eq: pendingRequest?.recordId } },
+      orderBy: [{ createdAt: 'DescNullsLast' }],
       limit: 1,
       skip: !isOwnPendingRequest,
     });
@@ -204,7 +205,7 @@ const OpportunityQualificationGateModalContent = () => {
         ? String(opportunity.amount.amountMicros / 1_000_000)
         : '',
     );
-    setIsBudgetCompatible(false);
+    setIsBudgetCompatible(opportunity?.eventBudgetCompatible ?? false);
     setInitializedRequestId(pendingRequest.recordId);
   }, [
     corporateEvent,
@@ -241,6 +242,7 @@ const OpportunityQualificationGateModalContent = () => {
       eventLocation: location,
       eventAt,
       amount: amountDraft,
+      eventBudgetCompatible: isBudgetCompatible,
     },
     corporateEvent: { eventType, city },
   });
@@ -308,6 +310,7 @@ const OpportunityQualificationGateModalContent = () => {
             amountMicros: amountDraft.amountMicros,
             currencyCode: 'BRL',
           },
+          eventBudgetCompatible: isBudgetCompatible,
         },
       });
 

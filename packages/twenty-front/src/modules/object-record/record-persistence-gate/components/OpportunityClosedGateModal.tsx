@@ -155,6 +155,7 @@ const OpportunityClosedGateModalContent = () => {
     useFindManyRecords<CorporateEventRecord>({
       objectNameSingular: CORPORATE_EVENT_OBJECT_NAME_SINGULAR,
       filter: { opportunityId: { eq: pendingRequest?.recordId } },
+      orderBy: [{ createdAt: 'DescNullsLast' }],
       limit: 1,
       skip: !isOwnPendingRequest,
     });
