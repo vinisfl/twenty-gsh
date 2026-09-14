@@ -9,6 +9,7 @@ import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import { getJestMetadataAndApolloMocksWrapper } from '~/testing/jest/getJestMetadataAndApolloMocksWrapper';
 
 const mockUpdateOneRecord = jest.fn();
+const mockCreateCorporateEvent = jest.fn();
 const mockOpenModal = jest.fn();
 const mockCloseModal = jest.fn();
 
@@ -30,6 +31,7 @@ const translatedMessages: Record<string, string> = {
   '1oBsHD': 'Carregando dados do evento…',
   yE2evI:
     'Nenhum evento vinculado a esta oportunidade. Vincule um evento antes de encerrar.',
+  HObCAi: 'Criar e vincular evento',
 };
 
 jest.mock('@lingui/react/macro', () => ({
@@ -61,6 +63,20 @@ jest.mock('@/object-record/hooks/useFindManyRecords', () => ({
 
 jest.mock('@/object-record/hooks/useUpdateOneRecord', () => ({
   useUpdateOneRecord: () => ({ updateOneRecord: mockUpdateOneRecord }),
+}));
+
+jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
+  useCreateOneRecord: ({
+    objectNameSingular,
+  }: {
+    objectNameSingular: string;
+  }) => {
+    if (objectNameSingular === 'corporateEvent') {
+      return { createOneRecord: mockCreateCorporateEvent };
+    }
+
+    throw new Error(`Unexpected object: ${objectNameSingular}`);
+  },
 }));
 
 jest.mock('@/ui/layout/modal/hooks/useModal', () => ({
@@ -173,6 +189,15 @@ describe('OpportunityClosedGateModal', () => {
       },
     ];
     mockUpdateOneRecord.mockResolvedValue({ id: 'opportunity-1' });
+    mockCreateCorporateEvent.mockResolvedValue({
+      id: 'event-created',
+      name: 'Confraternização de fim de ano',
+      executionStatus: null,
+      assemblyStatus: null,
+      travelStatus: null,
+      supplyStatus: null,
+      teamStatus: null,
+    });
   });
 
   it('blocks only the production-to-closed advancement and lets regressions persist natively', () => {
@@ -261,6 +286,65 @@ describe('OpportunityClosedGateModal', () => {
 
     expect(screen.getByText('Encerrar')).toBeDisabled();
     expect(screen.getByText(/Nenhum evento vinculado/)).toBeInTheDocument();
+  });
+
+  it('creates and links a missing event before completing the same advancement', async () => {
+    corporateEventRecords = [];
+    const user = userEvent.setup();
+    render(<OpportunityClosedGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    await user.click(screen.getByText('Criar e vincular evento'));
+
+    expect(mockCreateCorporateEvent).toHaveBeenCalledWith({
+      name: 'Confraternização de fim de ano',
+      opportunityId: 'opportunity-1',
+    });
+    expect(screen.getByLabelText('Status da execução')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Status da execução'), [
+      'COMPLETED',
+    ]);
+    await user.selectOptions(screen.getByLabelText('Montagem'), ['READY']);
+    await user.selectOptions(screen.getByLabelText('Deslocamento'), [
+      'NOT_APPLICABLE',
+    ]);
+    await user.selectOptions(screen.getByLabelText('Abastecimento'), ['READY']);
+    await user.selectOptions(screen.getByLabelText('Equipe'), ['READY']);
+    await user.click(screen.getByText('Encerrar'));
+
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+      objectNameSingular: 'corporateEvent',
+      idToUpdate: 'event-created',
+      updateOneRecordInput: {
+        executionStatus: 'COMPLETED',
+        assemblyStatus: 'READY',
+        travelStatus: 'NOT_APPLICABLE',
+        supplyStatus: 'READY',
+        teamStatus: 'READY',
+      },
+    });
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectNameSingular: CoreObjectNameSingular.Opportunity,
+        idToUpdate: 'opportunity-1',
+        updateOneRecordInput: expect.objectContaining({
+          eventProcessStage: 'CLOSED',
+        }),
+      }),
+    );
+  });
+
+  it('keeps the gate modal open while creating a missing event', async () => {
+    corporateEventRecords = [];
+    mockCreateCorporateEvent.mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<OpportunityClosedGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    await user.click(screen.getByText('Criar e vincular evento'));
+
+    expect(screen.getByText('Cancelar')).toBeDisabled();
   });
 
   it('advances the stage when all gate criteria are already met', async () => {

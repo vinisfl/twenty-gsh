@@ -9,6 +9,7 @@ import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import { getJestMetadataAndApolloMocksWrapper } from '~/testing/jest/getJestMetadataAndApolloMocksWrapper';
 
 const mockUpdateOneRecord = jest.fn();
+const mockCreateEventProposal = jest.fn();
 const mockCreateTask = jest.fn();
 const mockCreateTaskTarget = jest.fn();
 const mockOpenModal = jest.fn();
@@ -30,6 +31,7 @@ const translatedMessages: Record<string, string> = {
   XRQmS4: 'Evidência do aceite',
   NJGXuk:
     'Nenhuma proposta encontrada para esta oportunidade. Crie uma proposta antes de avançar.',
+  mr7SHW: 'Criar proposta',
 };
 
 jest.mock('@lingui/react/macro', () => ({
@@ -74,6 +76,8 @@ jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
         return { createOneRecord: mockCreateTask };
       case CoreObjectNameSingular.TaskTarget:
         return { createOneRecord: mockCreateTaskTarget };
+      case 'eventProposal':
+        return { createOneRecord: mockCreateEventProposal };
       default:
         throw new Error(`Unexpected object: ${objectNameSingular}`);
     }
@@ -209,6 +213,11 @@ describe('OpportunityAcceptanceGateModal', () => {
     ];
     proposalRecords = [{ id: 'proposal-1', version: 1, status: 'ACCEPTED' }];
     mockUpdateOneRecord.mockResolvedValue({ id: 'opportunity-1' });
+    mockCreateEventProposal.mockResolvedValue({
+      id: 'proposal-created',
+      version: 1,
+      status: 'DRAFT',
+    });
     mockCreateTask.mockResolvedValue({ id: 'task-1' });
     mockCreateTaskTarget.mockResolvedValue({ id: 'task-target-1' });
   });
@@ -414,6 +423,55 @@ describe('OpportunityAcceptanceGateModal', () => {
 
     expect(screen.getByText('Avançar')).toBeDisabled();
     expect(screen.getByText(/Nenhuma proposta encontrada/)).toBeInTheDocument();
+  });
+
+  it('creates a missing proposal and resumes the same advancement flow', async () => {
+    proposalRecords = [];
+    const user = userEvent.setup();
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    await user.click(screen.getByText('Criar proposta'));
+
+    expect(mockCreateEventProposal).toHaveBeenCalledWith({
+      name: 'Confraternização de fim de ano',
+      opportunityId: 'opportunity-1',
+      status: 'DRAFT',
+      version: 1,
+    });
+    expect(screen.getByLabelText('Status da proposta')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Status da proposta'), [
+      'ACCEPTED',
+    ]);
+    await user.click(screen.getByText('Avançar'));
+
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+      objectNameSingular: 'eventProposal',
+      idToUpdate: 'proposal-created',
+      updateOneRecordInput: { status: 'ACCEPTED' },
+    });
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectNameSingular: CoreObjectNameSingular.Opportunity,
+        idToUpdate: 'opportunity-1',
+        updateOneRecordInput: expect.objectContaining({
+          eventProcessStage: 'ACCEPTANCE_REGISTRATION',
+        }),
+      }),
+    );
+  });
+
+  it('keeps the gate modal open while creating a missing proposal', async () => {
+    proposalRecords = [];
+    mockCreateEventProposal.mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<OpportunityAcceptanceGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    await user.click(screen.getByText('Criar proposta'));
+
+    expect(screen.getByText('Cancelar')).toBeDisabled();
   });
 
   it('advances the stage and creates the registration-request task after confirmation', async () => {

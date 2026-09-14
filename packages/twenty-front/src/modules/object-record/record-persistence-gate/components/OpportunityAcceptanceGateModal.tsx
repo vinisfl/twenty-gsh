@@ -67,6 +67,12 @@ type ProposalRecord = ObjectRecord & {
   status: string | null;
 };
 
+type CreatedProposal = {
+  id: string;
+  version: number;
+  status: string;
+};
+
 export const OpportunityAcceptanceGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
     objectMetadataItemFamilySelector,
@@ -95,6 +101,9 @@ const OpportunityAcceptanceGateModalContent = () => {
   const { enqueueErrorSnackBar } = useSnackBar();
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
   const { updateOneRecord } = useUpdateOneRecord();
+  const { createOneRecord: createEventProposal } = useCreateOneRecord({
+    objectNameSingular: 'eventProposal',
+  });
   const { createOneRecord: createTask } = useCreateOneRecord({
     objectNameSingular: CoreObjectNameSingular.Task,
   });
@@ -113,10 +122,13 @@ const OpportunityAcceptanceGateModalContent = () => {
   const [proposalStatus, setProposalStatus] = useState('');
   const [closedAmount, setClosedAmount] = useState('');
   const [acceptanceEvidence, setAcceptanceEvidence] = useState('');
+  const [createdProposal, setCreatedProposal] =
+    useState<CreatedProposal | null>(null);
   const [initializedRequestId, setInitializedRequestId] = useState<
     string | null
   >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreatingProposal, setIsCreatingProposal] = useState(false);
 
   // Several gate modals share this single-handler extension point (one per
   // stage transition — see OpportunityQualificationGateModal). This is only
@@ -143,7 +155,7 @@ const OpportunityAcceptanceGateModalContent = () => {
     });
 
   const opportunity = opportunities[0];
-  const latestProposal = getLatestProposal(proposals);
+  const latestProposal = createdProposal ?? getLatestProposal(proposals);
   const isLoading = isLoadingOpportunity || isLoadingProposals;
 
   const handleProposalToAcceptanceAdvance: OpportunityStageAdvanceGateHandler =
@@ -202,10 +214,15 @@ const OpportunityAcceptanceGateModalContent = () => {
     setProposalStatus('');
     setClosedAmount('');
     setAcceptanceEvidence('');
+    setCreatedProposal(null);
     setInitializedRequestId(null);
   };
 
   const handleClose = () => {
+    if (isCreatingProposal) {
+      return;
+    }
+
     closeModal(OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID);
     setPendingRequest(null);
     resetForm();
@@ -241,6 +258,36 @@ const OpportunityAcceptanceGateModalContent = () => {
       isSatisfied: !gateRequirements.missingRequirementKeys.includes(key),
       isInherited,
     });
+
+  const handleCreateProposal = async () => {
+    if (!isDefined(opportunity) || isDefined(latestProposal)) {
+      return;
+    }
+
+    setIsCreatingProposal(true);
+
+    try {
+      const proposal = await createEventProposal({
+        name: opportunity.name ?? t`Proposta`,
+        opportunityId: opportunity.id,
+        status: 'DRAFT',
+        version: 1,
+      });
+
+      setCreatedProposal({
+        id: proposal.id,
+        status: 'DRAFT',
+        version: 1,
+      });
+      setProposalStatus('DRAFT');
+    } catch (error) {
+      enqueueErrorSnackBar({
+        apolloError: CombinedGraphQLErrors.is(error) ? error : undefined,
+      });
+    } finally {
+      setIsCreatingProposal(false);
+    }
+  };
 
   const handleConfirm = async () => {
     if (
@@ -338,9 +385,20 @@ const OpportunityAcceptanceGateModalContent = () => {
           {t`Carregando dados da proposta…`}
         </Section>
       ) : !hasProposal ? (
-        <Section alignment={SectionAlignment.Center}>
-          {t`Nenhuma proposta encontrada para esta oportunidade. Crie uma proposta antes de avançar.`}
-        </Section>
+        <StyledFields>
+          <Section alignment={SectionAlignment.Center}>
+            {t`Nenhuma proposta encontrada para esta oportunidade. Crie uma proposta antes de avançar.`}
+          </Section>
+          <Button
+            onClick={handleCreateProposal}
+            variant="secondary"
+            title={t`Criar proposta`}
+            disabled={isCreatingProposal || !isDefined(opportunity)}
+            isLoading={isCreatingProposal}
+            fullWidth
+            justify="center"
+          />
+        </StyledFields>
       ) : (
         <StyledFields>
           <GateFieldWrapper
@@ -412,6 +470,7 @@ const OpportunityAcceptanceGateModalContent = () => {
           onClick={handleClose}
           variant="secondary"
           title={t`Cancelar`}
+          disabled={isCreatingProposal}
           fullWidth
           justify="center"
         />

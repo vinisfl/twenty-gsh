@@ -13,6 +13,7 @@ import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
 import { GateRequirementSummary } from '@/object-record/record-persistence-gate/components/GateRequirementSummary';
 import { GateFieldWrapper } from '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper';
+import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { OPPORTUNITY_CLOSED_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityClosedGateModalId';
@@ -67,6 +68,15 @@ type CorporateEventRecord = ObjectRecord & {
   teamStatus: string | null;
 };
 
+type CreatedCorporateEvent = {
+  id: string;
+  executionStatus: null;
+  assemblyStatus: null;
+  travelStatus: null;
+  supplyStatus: null;
+  teamStatus: null;
+};
+
 export const OpportunityClosedGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
     objectMetadataItemFamilySelector,
@@ -104,6 +114,9 @@ const OpportunityClosedGateModalContent = () => {
   const { openModal, closeModal } = useModal();
   const { enqueueErrorSnackBar } = useSnackBar();
   const { updateOneRecord } = useUpdateOneRecord();
+  const { createOneRecord: createCorporateEvent } = useCreateOneRecord({
+    objectNameSingular: CORPORATE_EVENT_OBJECT_NAME_SINGULAR,
+  });
 
   const contractStatusOptions = [
     { value: 'NOT_STARTED', label: t`Não iniciado` },
@@ -134,10 +147,14 @@ const OpportunityClosedGateModalContent = () => {
   const [travelStatus, setTravelStatus] = useState('');
   const [supplyStatus, setSupplyStatus] = useState('');
   const [teamStatus, setTeamStatus] = useState('');
+  const [createdCorporateEvent, setCreatedCorporateEvent] =
+    useState<CreatedCorporateEvent | null>(null);
   const [initializedRequestId, setInitializedRequestId] = useState<
     string | null
   >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreatingCorporateEvent, setIsCreatingCorporateEvent] =
+    useState(false);
 
   // Several gate modals share this single-handler extension point (one per
   // stage transition — see OpportunityAcceptanceGateModal). This is only
@@ -164,7 +181,7 @@ const OpportunityClosedGateModalContent = () => {
     });
 
   const opportunity = opportunities[0];
-  const corporateEvent = corporateEvents[0];
+  const corporateEvent = createdCorporateEvent ?? corporateEvents[0];
   const isLoading = isLoadingOpportunity || isLoadingCorporateEvent;
 
   const handleProductionToClosedAdvance: OpportunityStageAdvanceGateHandler =
@@ -225,10 +242,15 @@ const OpportunityClosedGateModalContent = () => {
     setTravelStatus('');
     setSupplyStatus('');
     setTeamStatus('');
+    setCreatedCorporateEvent(null);
     setInitializedRequestId(null);
   };
 
   const handleClose = () => {
+    if (isCreatingCorporateEvent) {
+      return;
+    }
+
     closeModal(OPPORTUNITY_CLOSED_GATE_MODAL_ID);
     setPendingRequest(null);
     resetForm();
@@ -269,6 +291,36 @@ const OpportunityClosedGateModalContent = () => {
       isSatisfied: !gateRequirements.missingRequirementKeys.includes(key),
       isInherited,
     });
+
+  const handleCreateCorporateEvent = async () => {
+    if (!isDefined(opportunity) || isDefined(corporateEvent)) {
+      return;
+    }
+
+    setIsCreatingCorporateEvent(true);
+
+    try {
+      const event = await createCorporateEvent({
+        name: opportunity.name ?? t`Evento`,
+        opportunityId: opportunity.id,
+      });
+
+      setCreatedCorporateEvent({
+        id: event.id,
+        executionStatus: null,
+        assemblyStatus: null,
+        travelStatus: null,
+        supplyStatus: null,
+        teamStatus: null,
+      });
+    } catch (error) {
+      enqueueErrorSnackBar({
+        apolloError: CombinedGraphQLErrors.is(error) ? error : undefined,
+      });
+    } finally {
+      setIsCreatingCorporateEvent(false);
+    }
+  };
 
   const handleConfirm = async () => {
     if (
@@ -362,9 +414,20 @@ const OpportunityClosedGateModalContent = () => {
           {t`Carregando dados do evento…`}
         </Section>
       ) : !hasCorporateEvent ? (
-        <Section alignment={SectionAlignment.Center}>
-          {t`Nenhum evento vinculado a esta oportunidade. Vincule um evento antes de encerrar.`}
-        </Section>
+        <StyledFields>
+          <Section alignment={SectionAlignment.Center}>
+            {t`Nenhum evento vinculado a esta oportunidade. Vincule um evento antes de encerrar.`}
+          </Section>
+          <Button
+            onClick={handleCreateCorporateEvent}
+            variant="secondary"
+            title={t`Criar e vincular evento`}
+            disabled={isCreatingCorporateEvent || !isDefined(opportunity)}
+            isLoading={isCreatingCorporateEvent}
+            fullWidth
+            justify="center"
+          />
+        </StyledFields>
       ) : (
         <StyledFields>
           <GateFieldWrapper
@@ -478,6 +541,7 @@ const OpportunityClosedGateModalContent = () => {
           onClick={handleClose}
           variant="secondary"
           title={t`Cancelar`}
+          disabled={isCreatingCorporateEvent}
           fullWidth
           justify="center"
         />
