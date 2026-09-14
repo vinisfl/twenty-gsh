@@ -3,6 +3,7 @@ import { useTranslate } from 'twenty-sdk/front-component';
 
 import {
   fromCurrencyInputValue,
+  getCurrencyInputScale,
   toCurrencyInputValue,
 } from 'src/front-components/fields/utils/currency-input-value.util';
 
@@ -73,7 +74,7 @@ export const CurrencyInput = ({
         thousandsSeparator="."
         radix=","
         mapToRadix={['.']}
-        scale={2}
+        scale={getCurrencyInputScale(value)}
         value={toCurrencyInputValue(value)}
         unmask
         onAccept={handleAccept}
