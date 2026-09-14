@@ -10,7 +10,6 @@ import { RecordBoardEffects } from '@/object-record/record-board/components/Reco
 import { RecordBoardFetchMoreInViewTriggerComponent } from '@/object-record/record-board/components/RecordBoardFetchMoreInViewTriggerComponent';
 import { RecordBoardHeader } from '@/object-record/record-board/components/RecordBoardHeader';
 import { RecordBoardContext } from '@/object-record/record-board/contexts/RecordBoardContext';
-import { OpportunityStageReadinessProvider } from '@/object-record/record-persistence-gate/components/OpportunityStageReadinessProvider';
 import { isRecordBoardViewSettingsReadOnlyComponentState } from '@/object-record/record-board/states/isRecordBoardViewSettingsReadOnlyComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { ScrollWrapper } from '@/ui/utilities/scroll/components/ScrollWrapper';
@@ -58,11 +57,9 @@ export const RecordBoard = () => {
           <RecordBoardHeader />
           <StyledBoardContentContainer>
             <StyledContainer ref={boardRef}>
-              <OpportunityStageReadinessProvider>
-                <RecordBoardDndKitProvider>
-                  <RecordBoardColumns />
-                </RecordBoardDndKitProvider>
-              </OpportunityStageReadinessProvider>
+              <RecordBoardDndKitProvider>
+                <RecordBoardColumns />
+              </RecordBoardDndKitProvider>
               {!isRecordBoardViewSettingsReadOnly && (
                 <RecordBoardDragSelect boardRef={boardRef} />
               )}
