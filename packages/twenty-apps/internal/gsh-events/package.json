@@ -30,6 +30,7 @@
     "react": "^19.2.0",
     "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.0",
+    "react-imask": "^7.6.0",
     "twenty-client-sdk": "2.35.1",
     "twenty-sdk": "2.35.1",
     "twenty-ui": "^1.0.0-alpha.1",

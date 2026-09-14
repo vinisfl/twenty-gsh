@@ -25,8 +25,8 @@ import {
   SERVICE_ORDER_STATUS,
 } from 'src/constants/domain-options';
 import { UPDATE_EVENT_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER } from 'src/constants/universal-identifiers';
-import { fromDateTimeLocalValue } from 'src/front-components/utils/from-date-time-local-value.util';
-import { toDateTimeLocalValue } from 'src/front-components/utils/to-date-time-local-value.util';
+import { CurrencyInput } from 'src/front-components/fields/CurrencyInput';
+import { DateTimeInput } from 'src/front-components/fields/DateTimeInput';
 import type { CompanyUpdate } from 'src/types/company-update';
 import type { CorporateEventUpdate } from 'src/types/corporate-event-update';
 import type { EventUpdateResponse } from 'src/types/event-update-response';
@@ -326,7 +326,7 @@ const UpdateEvent = () => {
             ]} /></Field>
             <Field label="Pendência atual"><TextInput value={form.opportunity.currentPending} onChange={(value) => setOpportunity('currentPending', value)} /></Field>
             <Field label="Próxima ação"><TextInput value={form.opportunity.nextAction} onChange={(value) => setOpportunity('nextAction', value)} /></Field>
-            <Field label="Data da próxima ação"><TextInput type="datetime-local" value={toDateTimeLocalValue(form.opportunity.nextActionAt)} onChange={(value) => setOpportunity('nextActionAt', fromDateTimeLocalValue(value))} /></Field>
+            <Field label="Data da próxima ação"><DateTimeInput value={form.opportunity.nextActionAt} onChange={(value) => setOpportunity('nextActionAt', value)} /></Field>
           </div>
         </details>
 
@@ -343,13 +343,13 @@ const UpdateEvent = () => {
             <Field label="Tipo"><Select value={form.event.eventType} onChange={(value) => setEvent('eventType', value)} options={[
               { value: 'COFFEE_BREAK', label: 'Coffee break' }, { value: 'WELCOME_COFFEE', label: 'Welcome coffee' }, { value: 'HAPPY_HOUR', label: 'Happy hour' }, { value: 'COCKTAIL', label: 'Coquetel' }, { value: 'FAIR', label: 'Feira' }, { value: 'MEAL', label: 'Refeição' }, { value: 'OTHER', label: 'Outro' },
             ]} /></Field>
-            <Field label="Início"><TextInput type="datetime-local" value={toDateTimeLocalValue(form.event.startAt ?? form.opportunity.eventAt)} onChange={(value) => { const iso = fromDateTimeLocalValue(value); setEvent('startAt', iso); setOpportunity('eventAt', iso); }} /></Field>
-            <Field label="Fim"><TextInput type="datetime-local" value={toDateTimeLocalValue(form.event.endAt)} onChange={(value) => setEvent('endAt', fromDateTimeLocalValue(value))} /></Field>
+            <Field label="Início"><DateTimeInput value={form.event.startAt ?? form.opportunity.eventAt} onChange={(value) => { setEvent('startAt', value); setOpportunity('eventAt', value); }} /></Field>
+            <Field label="Fim"><DateTimeInput value={form.event.endAt} onChange={(value) => setEvent('endAt', value)} /></Field>
             <Field label="Local"><TextInput value={form.opportunity.location} onChange={(value) => setOpportunity('location', value)} /></Field>
             <Field label="Cidade"><TextInput value={form.event.city} onChange={(value) => setEvent('city', value)} /></Field>
             <Field label="Público estimado"><TextInput type="number" value={form.opportunity.audience} onChange={(value) => setOpportunity('audience', numberValue(value))} /></Field>
             <Field label="Público confirmado"><TextInput type="number" value={form.event.confirmedAudience} onChange={(value) => setEvent('confirmedAudience', numberValue(value))} /></Field>
-            <Field label="Valor estimado (R$)"><TextInput type="number" value={form.opportunity.amountBRL} onChange={(value) => setOpportunity('amountBRL', numberValue(value))} /></Field>
+            <Field label="Valor estimado (R$)"><CurrencyInput value={form.opportunity.amountBRL} onChange={(value) => setOpportunity('amountBRL', value)} /></Field>
             <Field label="Formato de serviço"><TextInput value={form.event.serviceFormat} onChange={(value) => setEvent('serviceFormat', value)} /></Field>
             <Field label="Salas e espaços"><TextInput value={form.event.rooms} onChange={(value) => setEvent('rooms', value)} /></Field>
             <Field label="Resumo do cardápio" full><TextArea value={form.event.menuSummary} onChange={(value) => setEvent('menuSummary', value)} /></Field>
@@ -374,10 +374,10 @@ const UpdateEvent = () => {
               <Field label="Status"><Select value={form.proposal.status} onChange={(value) => setProposal('status', value)} options={[
                 { value: PROPOSAL_STATUS.DRAFT, label: 'Rascunho' }, { value: PROPOSAL_STATUS.SENT, label: 'Enviada' }, { value: PROPOSAL_STATUS.SUPERSEDED, label: 'Substituída' }, { value: PROPOSAL_STATUS.ACCEPTED, label: 'Aceita' }, { value: PROPOSAL_STATUS.REJECTED, label: 'Recusada' },
               ]} /></Field>
-              <Field label="Valor total (R$)"><TextInput type="number" value={form.proposal.totalBRL} onChange={(value) => setProposal('totalBRL', numberValue(value))} /></Field>
-              <Field label="Valor por pessoa (R$)"><TextInput type="number" value={form.proposal.perPersonBRL} onChange={(value) => setProposal('perPersonBRL', numberValue(value))} /></Field>
-              <Field label="Validade"><TextInput type="datetime-local" value={toDateTimeLocalValue(form.proposal.validUntil)} onChange={(value) => setProposal('validUntil', fromDateTimeLocalValue(value))} /></Field>
-              <Field label="Enviada em"><TextInput type="datetime-local" value={toDateTimeLocalValue(form.proposal.sentAt)} onChange={(value) => setProposal('sentAt', fromDateTimeLocalValue(value))} /></Field>
+              <Field label="Valor total (R$)"><CurrencyInput value={form.proposal.totalBRL} onChange={(value) => setProposal('totalBRL', value)} /></Field>
+              <Field label="Valor por pessoa (R$)"><CurrencyInput value={form.proposal.perPersonBRL} onChange={(value) => setProposal('perPersonBRL', value)} /></Field>
+              <Field label="Validade"><DateTimeInput value={form.proposal.validUntil} onChange={(value) => setProposal('validUntil', value)} /></Field>
+              <Field label="Enviada em"><DateTimeInput value={form.proposal.sentAt} onChange={(value) => setProposal('sentAt', value)} /></Field>
               <Field label="Link do documento"><TextInput value={form.proposal.documentUrl} onChange={(value) => setProposal('documentUrl', value)} /></Field>
               <Field label="Condições de pagamento" full><TextArea value={form.proposal.paymentTerms} onChange={(value) => { setProposal('paymentTerms', value); setOpportunity('paymentTerms', value); }} /></Field>
               <Field label="Alterações desta versão" full><TextArea value={form.proposal.changeSummary} onChange={(value) => setProposal('changeSummary', value)} /></Field>
@@ -389,7 +389,7 @@ const UpdateEvent = () => {
           <summary style={styles.summary}>Aceite e cadastro do cliente</summary>
           <div style={styles.grid}>
             <Field label="Evidência do aceite" full><TextArea value={form.opportunity.acceptanceEvidence} onChange={(value) => setOpportunity('acceptanceEvidence', value)} /></Field>
-            <Field label="Valor fechado (R$)"><TextInput type="number" value={form.opportunity.closedAmountBRL} onChange={(value) => setOpportunity('closedAmountBRL', numberValue(value))} /></Field>
+            <Field label="Valor fechado (R$)"><CurrencyInput value={form.opportunity.closedAmountBRL} onChange={(value) => setOpportunity('closedAmountBRL', value)} /></Field>
             <Field label="Razão social" helper={!form.company.id ? 'Vincule uma empresa à oportunidade antes de salvar o cadastro fiscal.' : undefined}><TextInput disabled={!form.company.id} value={form.company.legalName} onChange={(value) => setCompany('legalName', value)} /></Field>
             <Field label="CNPJ / identificação fiscal"><TextInput disabled={!form.company.id} value={form.company.taxId} onChange={(value) => setCompany('taxId', value)} /></Field>
             <Field label="E-mail de faturamento"><TextInput disabled={!form.company.id} value={form.company.billingEmail} onChange={(value) => setCompany('billingEmail', value)} /></Field>
@@ -413,7 +413,7 @@ const UpdateEvent = () => {
             ]} /></Field>
             <Field label="Responsável operacional"><TextInput value={form.serviceOrder.responsible} onChange={(value) => setServiceOrder('responsible', value)} /></Field>
             <Field label="Distribuição concluída"><Select value={form.serviceOrder.distributionStatus} onChange={(value) => setServiceOrder('distributionStatus', value)} options={[{ value: 'NO', label: 'Não' }, { value: 'PARTIAL', label: 'Parcial' }, { value: 'YES', label: 'Sim' }]} /></Field>
-            <Field label="Distribuída em"><TextInput type="datetime-local" value={toDateTimeLocalValue(form.serviceOrder.distributedAt)} onChange={(value) => setServiceOrder('distributedAt', fromDateTimeLocalValue(value))} /></Field>
+            <Field label="Distribuída em"><DateTimeInput value={form.serviceOrder.distributedAt} onChange={(value) => setServiceOrder('distributedAt', value)} /></Field>
             <Field label="Link da OS"><TextInput value={form.serviceOrder.documentUrl} onChange={(value) => setServiceOrder('documentUrl', value)} /></Field>
             <Field label="Cronograma" full><TextArea value={form.serviceOrder.timeline} onChange={(value) => setServiceOrder('timeline', value)} /></Field>
             <Field label="Cardápio final" full><TextArea value={form.serviceOrder.finalMenu} onChange={(value) => setServiceOrder('finalMenu', value)} /></Field>
