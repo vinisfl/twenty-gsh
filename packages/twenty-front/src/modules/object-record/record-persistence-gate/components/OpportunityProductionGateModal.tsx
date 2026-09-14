@@ -20,6 +20,7 @@ import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/r
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
 import { getIsAcceptanceToProductionStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsAcceptanceToProductionStageAdvance';
+import { isFilled } from '@/object-record/record-persistence-gate/utils/isFilled';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
@@ -59,9 +60,6 @@ type CompanyRecord = ObjectRecord & {
   taxId: string | null;
   billingEmail: string | null;
 };
-
-const isFilled = (value: string | null | undefined): boolean =>
-  isDefined(value) && value.trim().length > 0;
 
 export const OpportunityProductionGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(

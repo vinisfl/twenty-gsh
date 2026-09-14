@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { OpportunityCreateGateModal } from '@/object-record/record-persistence-gate/components/OpportunityCreateGateModal';
 import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
 import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
@@ -11,8 +12,11 @@ import { getTestEnrichedObjectMetadataItemsMock } from '~/testing/utils/getTestE
 const mockCreateOpportunity = jest.fn();
 const mockCreateCompany = jest.fn();
 const mockCreatePerson = jest.fn();
+const mockCreateCorporateEvent = jest.fn();
+const mockCreateEventProposal = jest.fn();
 const mockCreateTask = jest.fn();
 const mockCreateTaskTarget = jest.fn();
+const mockUpdateOneRecord = jest.fn();
 
 jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
   useCreateOneRecord: ({
@@ -27,6 +31,10 @@ jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
         return { createOneRecord: mockCreateCompany };
       case CoreObjectNameSingular.Person:
         return { createOneRecord: mockCreatePerson };
+      case 'corporateEvent':
+        return { createOneRecord: mockCreateCorporateEvent };
+      case 'eventProposal':
+        return { createOneRecord: mockCreateEventProposal };
       case CoreObjectNameSingular.Task:
         return { createOneRecord: mockCreateTask };
       case CoreObjectNameSingular.TaskTarget:
@@ -38,6 +46,40 @@ jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
     }
   },
 }));
+
+jest.mock('@/object-record/hooks/useUpdateOneRecord', () => ({
+  useUpdateOneRecord: () => ({ updateOneRecord: mockUpdateOneRecord }),
+}));
+
+let companyRecords: unknown[] = [];
+let isLoadingCompany = false;
+
+jest.mock('@/object-record/hooks/useFindManyRecords', () => ({
+  useFindManyRecords: () => ({
+    records: companyRecords,
+    loading: isLoadingCompany,
+  }),
+}));
+
+// GSH-specific: corporateEvent and eventProposal are custom objects
+// registered by the gsh-events app (see ADR-0001), so they aren't part of
+// the standard-objects metadata mock. The create gate modal needs them
+// resolvable to render past its readiness guard.
+const FAKE_CORPORATE_EVENT_METADATA_ITEM: EnrichedObjectMetadataItem = {
+  ...getTestEnrichedObjectMetadataItemsMock()[0],
+  id: 'corporate-event-metadata-id',
+  nameSingular: 'corporateEvent',
+  namePlural: 'corporateEvents',
+  fields: [],
+};
+
+const FAKE_EVENT_PROPOSAL_METADATA_ITEM: EnrichedObjectMetadataItem = {
+  ...getTestEnrichedObjectMetadataItemsMock()[0],
+  id: 'event-proposal-metadata-id',
+  nameSingular: 'eventProposal',
+  namePlural: 'eventProposals',
+  fields: [],
+};
 
 const PICKED_RECORD_ID_BY_TEST_ID: Record<string, string> = {
   'opportunity-create-gate-modal-company': 'company-1',
@@ -91,7 +133,14 @@ jest.mock('@/ui/input/components/Select', () => ({
   ),
 }));
 
-const Wrapper = getJestMetadataAndApolloMocksWrapper({ apolloMocks: [] });
+const Wrapper = getJestMetadataAndApolloMocksWrapper({
+  apolloMocks: [],
+  objectMetadataItems: [
+    ...getTestEnrichedObjectMetadataItemsMock(),
+    FAKE_CORPORATE_EVENT_METADATA_ITEM,
+    FAKE_EVENT_PROPOSAL_METADATA_ITEM,
+  ],
+});
 
 const fillRequiredFields = () => {
   fireEvent.change(screen.getByLabelText('Nome do evento'), {
@@ -116,14 +165,19 @@ const fillRequiredFields = () => {
 describe('OpportunityCreateGateModal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    companyRecords = [];
+    isLoadingCompany = false;
     jotaiStore.set(currentWorkspaceMemberState.atom, {
       id: 'workspace-member-1',
     } as never);
     mockCreateOpportunity.mockResolvedValue({ id: 'opportunity-1' });
     mockCreateCompany.mockResolvedValue({ id: 'company-1' });
     mockCreatePerson.mockResolvedValue({ id: 'person-1' });
+    mockCreateCorporateEvent.mockResolvedValue({ id: 'event-1' });
+    mockCreateEventProposal.mockResolvedValue({ id: 'proposal-1' });
     mockCreateTask.mockResolvedValue({ id: 'task-1' });
     mockCreateTaskTarget.mockResolvedValue({ id: 'task-target-1' });
+    mockUpdateOneRecord.mockResolvedValue({ id: 'company-1' });
   });
 
   it('renders nothing until the Opportunity object metadata item is available', () => {
@@ -248,5 +302,227 @@ describe('OpportunityCreateGateModal', () => {
     });
 
     expect(mockCreateOpportunity).not.toHaveBeenCalled();
+  });
+
+  describe('cumulative fields when created directly in an advanced column', () => {
+    const originalPointerEvent = window.PointerEvent;
+
+    beforeAll(() => {
+      Object.defineProperty(window, 'PointerEvent', {
+        configurable: true,
+        value: MouseEvent,
+      });
+    });
+
+    afterAll(() => {
+      Object.defineProperty(window, 'PointerEvent', {
+        configurable: true,
+        value: originalPointerEvent,
+      });
+    });
+
+    const fillQualificationFields = () => {
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-event-type'),
+        { target: { value: 'COFFEE_BREAK' } },
+      );
+      fireEvent.change(screen.getByLabelText('Público estimado'), {
+        target: { value: '80' },
+      });
+      fireEvent.change(screen.getByLabelText('Local'), {
+        target: { value: 'Casa GSH' },
+      });
+      fireEvent.change(screen.getByLabelText('Cidade'), {
+        target: { value: 'São Paulo' },
+      });
+      fireEvent.click(screen.getByTestId('input-checkbox'));
+    };
+
+    const getCreateButton = () =>
+      screen.getByText('Criar').closest('button') as HTMLButtonElement;
+
+    const fillAcceptanceFields = () => {
+      fireEvent.change(screen.getByLabelText('Valor fechado (R$)'), {
+        target: { value: '4500' },
+      });
+      fireEvent.change(screen.getByLabelText('Evidência do aceite'), {
+        target: { value: 'https://mail.example.com/aceite-cliente' },
+      });
+    };
+
+    it('does not ask for any extra field when created in the entry stage', () => {
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: { eventProcessStage: 'ENTRY' } });
+      });
+
+      expect(
+        screen.queryByTestId('opportunity-create-gate-modal-event-type'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText('Valor fechado (R$)'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('requires the qualification-gate fields, creates the corporate event, and skips the retroactive task when created in Proposta e negociação', async () => {
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({
+          recordInput: { eventProcessStage: 'PROPOSAL_NEGOTIATION' },
+        });
+      });
+
+      fillRequiredFields();
+
+      expect(getCreateButton()).toBeDisabled();
+
+      fillQualificationFields();
+
+      expect(getCreateButton()).not.toBeDisabled();
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Criar'));
+      });
+
+      expect(mockCreateOpportunity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventProcessStage: 'PROPOSAL_NEGOTIATION',
+          eventAudience: 80,
+          eventLocation: 'Casa GSH',
+        }),
+      );
+
+      expect(mockCreateCorporateEvent).toHaveBeenCalledWith({
+        name: 'Confraternização de fim de ano',
+        eventType: 'COFFEE_BREAK',
+        city: 'São Paulo',
+        estimatedAudience: 80,
+        startAt: new Date('2026-09-10T14:30').toISOString(),
+        opportunityId: 'opportunity-1',
+      });
+
+      expect(mockCreateEventProposal).not.toHaveBeenCalled();
+
+      expect(mockCreateTask).toHaveBeenCalledTimes(1);
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Fazer contato inicial e capturar briefing',
+        }),
+      );
+    });
+
+    it('requires the qualification and acceptance gate fields cumulatively when created in Aceite e cadastro', async () => {
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({
+          recordInput: { eventProcessStage: 'ACCEPTANCE_REGISTRATION' },
+        });
+      });
+
+      fillRequiredFields();
+      fillQualificationFields();
+
+      expect(getCreateButton()).toBeDisabled();
+
+      fillAcceptanceFields();
+
+      expect(getCreateButton()).not.toBeDisabled();
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Criar'));
+      });
+
+      expect(mockCreateOpportunity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventProcessStage: 'ACCEPTANCE_REGISTRATION',
+          eventAudience: 80,
+          eventLocation: 'Casa GSH',
+          eventClosedAmount: {
+            amountMicros: 4_500_000_000,
+            currencyCode: 'BRL',
+          },
+          eventAcceptanceEvidence: 'https://mail.example.com/aceite-cliente',
+        }),
+      );
+
+      expect(mockCreateEventProposal).toHaveBeenCalledWith({
+        name: 'Confraternização de fim de ano',
+        version: 1,
+        status: 'ACCEPTED',
+        total: { amountMicros: 4_500_000_000, currencyCode: 'BRL' },
+        opportunityId: 'opportunity-1',
+      });
+
+      expect(mockCreateTask).toHaveBeenCalledTimes(1);
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Fazer contato inicial e capturar briefing',
+        }),
+      );
+    });
+
+    it('only asks for the fiscal fields missing on the company, and writes them to Company, when created in Produção/formalização', async () => {
+      companyRecords = [
+        {
+          id: 'company-1',
+          legalName: null,
+          taxId: '12.345.678/0001-90',
+          billingEmail: 'faturamento@cliente.com',
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({
+          recordInput: { eventProcessStage: 'PRODUCTION_FORMALIZATION_EVENT' },
+        });
+      });
+
+      fillRequiredFields();
+      fillQualificationFields();
+      fillAcceptanceFields();
+
+      expect(screen.getByLabelText('Razão social')).toBeInTheDocument();
+      expect(screen.queryByLabelText('CNPJ')).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText('E-mail de faturamento'),
+      ).not.toBeInTheDocument();
+      expect(getCreateButton()).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText('Razão social'), {
+        target: { value: 'Gourmet e Companhia LTDA' },
+      });
+
+      expect(getCreateButton()).not.toBeDisabled();
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Criar'));
+      });
+
+      expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+        objectNameSingular: CoreObjectNameSingular.Company,
+        idToUpdate: 'company-1',
+        updateOneRecordInput: { legalName: 'Gourmet e Companhia LTDA' },
+      });
+
+      expect(mockCreateEventProposal).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'ACCEPTED' }),
+      );
+
+      expect(mockCreateTask).toHaveBeenCalledTimes(1);
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Fazer contato inicial e capturar briefing',
+        }),
+      );
+    });
   });
 });
