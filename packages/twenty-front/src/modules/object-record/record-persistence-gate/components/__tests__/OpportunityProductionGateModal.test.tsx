@@ -13,6 +13,7 @@ const mockCreateTask = jest.fn();
 const mockCreateTaskTarget = jest.fn();
 const mockOpenModal = jest.fn();
 const mockCloseModal = jest.fn();
+const mockEnqueueErrorSnackBar = jest.fn();
 
 let opportunityRecords: unknown[] = [];
 let companyRecords: unknown[] = [];
@@ -90,7 +91,7 @@ jest.mock('@/ui/layout/modal/hooks/useModal', () => ({
 }));
 
 jest.mock('@/ui/feedback/snack-bar-manager/hooks/useSnackBar', () => ({
-  useSnackBar: () => ({ enqueueErrorSnackBar: jest.fn() }),
+  useSnackBar: () => ({ enqueueErrorSnackBar: mockEnqueueErrorSnackBar }),
 }));
 
 jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue', () => ({
@@ -348,7 +349,7 @@ describe('OpportunityProductionGateModal', () => {
     expect(screen.getByText(/Nenhuma empresa vinculada/)).toBeInTheDocument();
   });
 
-  it('advances the stage and creates the service-order task after confirmation', async () => {
+  it('advances the stage and creates the complete formalization chain in order', async () => {
     const user = userEvent.setup();
     render(<OpportunityProductionGateModal />, { wrapper: Wrapper });
     openGate();
@@ -356,12 +357,30 @@ describe('OpportunityProductionGateModal', () => {
     expect(screen.getByText('Avançar')).not.toBeDisabled();
     await user.click(screen.getByText('Avançar'));
 
-    expect(mockCreateTask).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(mockCreateTask).toHaveBeenCalledTimes(4);
+    expect(mockCreateTask.mock.calls.map(([input]) => input)).toEqual([
+      {
         title: 'Gerar Ordem de Serviço',
+        status: 'TODO',
         assigneeId: 'owner-1',
-      }),
-    );
+      },
+      {
+        title: 'Preencher Formulário de Compra',
+        status: 'TODO',
+        assigneeId: 'owner-1',
+      },
+      {
+        title: 'Acompanhar emissão de NF junto ao financeiro',
+        status: 'TODO',
+        assigneeId: 'owner-1',
+      },
+      {
+        title: 'Gerar contrato',
+        status: 'TODO',
+        assigneeId: 'owner-1',
+      },
+    ]);
+    expect(mockCreateTaskTarget).toHaveBeenCalledTimes(4);
     expect(mockCreateTaskTarget).toHaveBeenCalledWith({
       taskId: 'task-1',
       targetOpportunityId: 'opportunity-1',
@@ -379,6 +398,31 @@ describe('OpportunityProductionGateModal', () => {
       expect.objectContaining({
         objectNameSingular: CoreObjectNameSingular.Company,
       }),
+    );
+  });
+
+  it('keeps the stage advance when a formalization task cannot be created', async () => {
+    mockCreateTask
+      .mockResolvedValueOnce({ id: 'task-1' })
+      .mockRejectedValueOnce(new Error('Task creation failed'));
+    const user = userEvent.setup();
+    render(<OpportunityProductionGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    await user.click(screen.getByText('Avançar'));
+
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectNameSingular: CoreObjectNameSingular.Opportunity,
+        idToUpdate: 'opportunity-1',
+        updateOneRecordInput: expect.objectContaining({
+          eventProcessStage: 'PRODUCTION_FORMALIZATION_EVENT',
+        }),
+      }),
+    );
+    expect(mockCreateTask).toHaveBeenCalledTimes(4);
+    expect(mockEnqueueErrorSnackBar).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.any(String) }),
     );
   });
 });

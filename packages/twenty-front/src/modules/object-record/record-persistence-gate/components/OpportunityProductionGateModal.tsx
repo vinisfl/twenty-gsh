@@ -17,8 +17,11 @@ import { GateFieldWrapper } from '@/object-record/record-persistence-gate/compon
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
+import { GSH_CONTRACT_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshContractTaskTitle';
 import { GSH_EVENT_SERVICE_ORDER_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshEventServiceOrderTaskTitle';
+import { GSH_INVOICE_FOLLOWUP_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshInvoiceFollowupTaskTitle';
 import { OPPORTUNITY_PRODUCTION_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityProductionGateModalId';
+import { GSH_PURCHASE_FORM_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshPurchaseFormTaskTitle';
 import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/hooks/useRegisterOpportunityStageAdvanceGateHandler';
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
 import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/types/OpportunityStageAdvanceGateHandler';
@@ -71,6 +74,13 @@ type CompanyRecord = ObjectRecord & {
   taxId: string | null;
   billingEmail: string | null;
 };
+
+const FORMALIZATION_CHAIN_TASK_TITLES = [
+  GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
+  GSH_PURCHASE_FORM_TASK_TITLE,
+  GSH_INVOICE_FOLLOWUP_TASK_TITLE,
+  GSH_CONTRACT_TASK_TITLE,
+];
 
 export const OpportunityProductionGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
@@ -288,17 +298,6 @@ const OpportunityProductionGateModalContent = () => {
         });
       }
 
-      const task = await createTask({
-        title: GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
-        status: 'TODO',
-        assigneeId: opportunity.ownerId ?? currentWorkspaceMember?.id ?? null,
-      });
-
-      await createTaskTarget({
-        taskId: task.id,
-        targetOpportunityId: opportunity.id,
-      });
-
       await updateOneRecord({
         objectNameSingular: CoreObjectNameSingular.Opportunity,
         idToUpdate: pendingRequest.recordId,
@@ -313,6 +312,33 @@ const OpportunityProductionGateModalContent = () => {
       });
 
       handleClose();
+
+      let hasTaskCreationError = false;
+
+      for (const title of FORMALIZATION_CHAIN_TASK_TITLES) {
+        try {
+          const task = await createTask({
+            title,
+            status: 'TODO',
+            assigneeId:
+              opportunity.ownerId ?? currentWorkspaceMember?.id ?? null,
+          });
+
+          await createTaskTarget({
+            taskId: task.id,
+            targetOpportunityId: opportunity.id,
+          });
+        } catch {
+          hasTaskCreationError = true;
+        }
+      }
+
+      if (hasTaskCreationError) {
+        enqueueErrorSnackBar({
+          message:
+            'A oportunidade avançou, mas algumas tarefas de formalização não puderam ser geradas automaticamente. Crie-as manualmente.',
+        });
+      }
     } catch (error) {
       enqueueErrorSnackBar({
         apolloError: CombinedGraphQLErrors.is(error) ? error : undefined,

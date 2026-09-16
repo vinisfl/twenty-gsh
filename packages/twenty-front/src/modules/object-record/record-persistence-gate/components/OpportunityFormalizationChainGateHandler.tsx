@@ -3,17 +3,18 @@ import { t } from '@lingui/core/macro';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
-import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
-import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
+import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { GSH_CONTRACT_TASK_DUE_DAYS } from '@/object-record/record-persistence-gate/constants/GshContractTaskDueDays';
 import { GSH_CONTRACT_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshContractTaskTitle';
+import { GSH_EVENT_SERVICE_ORDER_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshEventServiceOrderTaskTitle';
 import { GSH_INVOICE_FOLLOWUP_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshInvoiceFollowupTaskTitle';
 import { GSH_PURCHASE_FORM_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshPurchaseFormTaskTitle';
 import { useRegisterRecordFieldPersistGateHandler } from '@/object-record/record-persistence-gate/hooks/useRegisterRecordFieldPersistGateHandler';
 import { type RecordFieldPersistGateHandler } from '@/object-record/record-persistence-gate/types/RecordFieldPersistGateHandler';
 import {
+  getIsContractGenerated,
   getIsInvoiceIssuedForContract,
   getIsPurchaseFormSentForInvoice,
   getIsServiceOrderReadyForPurchaseForm,
@@ -21,20 +22,27 @@ import {
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorValue';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 
 const EVENT_SERVICE_ORDER_OBJECT_NAME_SINGULAR = 'eventServiceOrder';
 
 type OpportunityChainRecord = ObjectRecord & {
-  ownerId: string | null;
   purchaseFormStatus: string | null;
   invoiceStatus: string | null;
-  contractStatus: string | null;
 };
 
 type ServiceOrderChainRecord = ObjectRecord & {
   opportunityId: string | null;
   status: string | null;
+};
+
+type FormalizationTaskRecord = ObjectRecord & {
+  title: string | null;
+  status: string | null;
+};
+
+type FormalizationTaskTargetRecord = ObjectRecord & {
+  targetOpportunityId: string | null;
+  task: FormalizationTaskRecord | null;
 };
 
 export const OpportunityFormalizationChainGateHandler = () => {
@@ -65,13 +73,7 @@ export const OpportunityFormalizationChainGateHandler = () => {
 
 const OpportunityFormalizationChainGateHandlerEffect = () => {
   const { enqueueErrorSnackBar } = useSnackBar();
-  const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
-  const { createOneRecord: createTask } = useCreateOneRecord({
-    objectNameSingular: CoreObjectNameSingular.Task,
-  });
-  const { createOneRecord: createTaskTarget } = useCreateOneRecord({
-    objectNameSingular: CoreObjectNameSingular.TaskTarget,
-  });
+  const { updateOneRecord } = useUpdateOneRecord();
 
   // Bounded to the stage where the chain applies, so this stays cheap even
   // as the workspace's overall Opportunity history grows.
@@ -90,49 +92,60 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
       objectNameSingular: EVENT_SERVICE_ORDER_OBJECT_NAME_SINGULAR,
     });
 
-  const createDripTask = useCallback(
-    async ({
-      title,
-      opportunityId,
-      assigneeId,
-      dueInDays,
-    }: {
-      title: string;
-      opportunityId: string;
-      assigneeId: string | null | undefined;
-      dueInDays?: number;
-    }) => {
-      const task = await createTask({
-        title,
-        status: 'TODO',
-        assigneeId: assigneeId ?? currentWorkspaceMember?.id ?? null,
-        ...(isDefined(dueInDays)
-          ? {
-              dueAt: new Date(
-                Date.now() + dueInDays * 24 * 60 * 60 * 1_000,
-              ).toISOString(),
-            }
-          : {}),
-      });
+  const opportunityIds = opportunities.map((opportunity) => opportunity.id);
+  const { records: taskTargets } =
+    useFindManyRecords<FormalizationTaskTargetRecord>({
+      objectNameSingular: CoreObjectNameSingular.TaskTarget,
+      filter: { targetOpportunityId: { in: opportunityIds } },
+      recordGqlFields: {
+        id: true,
+        targetOpportunityId: true,
+        task: {
+          id: true,
+          title: true,
+          status: true,
+        },
+      },
+      skip: opportunityIds.length === 0,
+    });
 
-      await createTaskTarget({
-        taskId: task.id,
-        targetOpportunityId: opportunityId,
+  const updateTodoTask = useCallback(
+    async ({
+      opportunityId,
+      title,
+      updateOneRecordInput,
+    }: {
+      opportunityId: string;
+      title: string;
+      updateOneRecordInput: Partial<FormalizationTaskRecord>;
+    }) => {
+      const task = taskTargets.find(
+        (taskTarget) =>
+          taskTarget.targetOpportunityId === opportunityId &&
+          taskTarget.task?.title === title &&
+          taskTarget.task.status === 'TODO',
+      )?.task;
+
+      if (!isDefined(task)) {
+        return;
+      }
+
+      await updateOneRecord({
+        objectNameSingular: CoreObjectNameSingular.Task,
+        idToUpdate: task.id,
+        updateOneRecordInput,
       });
     },
-    [createTask, createTaskTarget, currentWorkspaceMember?.id],
+    [taskTargets, updateOneRecord],
   );
 
   const handleFormalizationChainFieldPersist: RecordFieldPersistGateHandler =
     useCallback(
-      ({ objectNameSingular, recordId, fieldName, valueToPersist }) => {
+      async ({ objectNameSingular, recordId, fieldName, valueToPersist }) => {
         if (
           objectNameSingular === CoreObjectNameSingular.Opportunity &&
           fieldName === 'purchaseFormStatus'
         ) {
-          const opportunity = opportunities.find(
-            (record) => record.id === recordId,
-          );
           const serviceOrder = serviceOrders.find(
             (record) => record.opportunityId === recordId,
           );
@@ -145,21 +158,21 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
           }
 
           if (
-            isDefined(opportunity) &&
             getIsPurchaseFormSentForInvoice(
               valueToPersist as string | null | undefined,
-            ) &&
-            opportunity.purchaseFormStatus === 'NOT_STARTED'
+            )
           ) {
-            createDripTask({
-              title: GSH_INVOICE_FOLLOWUP_TASK_TITLE,
-              opportunityId: recordId,
-              assigneeId: opportunity.ownerId,
-            }).catch(() => {
-              enqueueErrorSnackBar({
-                message: t`Não foi possível criar a tarefa de acompanhamento da NF.`,
+            try {
+              await updateTodoTask({
+                opportunityId: recordId,
+                title: GSH_PURCHASE_FORM_TASK_TITLE,
+                updateOneRecordInput: { status: 'DONE' },
               });
-            });
+            } catch {
+              enqueueErrorSnackBar({
+                message: t`Não foi possível sincronizar a tarefa do Formulário de Compra.`,
+              });
+            }
           }
 
           return true;
@@ -183,22 +196,34 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
           }
 
           if (
-            isDefined(opportunity) &&
             getIsInvoiceIssuedForContract(
               valueToPersist as string | null | undefined,
-            ) &&
-            opportunity.invoiceStatus !== 'ISSUED'
+            )
           ) {
-            createDripTask({
-              title: GSH_CONTRACT_TASK_TITLE,
-              opportunityId: recordId,
-              assigneeId: opportunity.ownerId,
-              dueInDays: GSH_CONTRACT_TASK_DUE_DAYS,
-            }).catch(() => {
-              enqueueErrorSnackBar({
-                message: t`Não foi possível criar a tarefa de geração do contrato.`,
+            try {
+              await updateTodoTask({
+                opportunityId: recordId,
+                title: GSH_INVOICE_FOLLOWUP_TASK_TITLE,
+                updateOneRecordInput: { status: 'DONE' },
               });
-            });
+
+              if (!getIsInvoiceIssuedForContract(opportunity?.invoiceStatus)) {
+                await updateTodoTask({
+                  opportunityId: recordId,
+                  title: GSH_CONTRACT_TASK_TITLE,
+                  updateOneRecordInput: {
+                    dueAt: new Date(
+                      Date.now() +
+                        GSH_CONTRACT_TASK_DUE_DAYS * 24 * 60 * 60 * 1_000,
+                    ).toISOString(),
+                  },
+                });
+              }
+            } catch {
+              enqueueErrorSnackBar({
+                message: t`Não foi possível sincronizar as tarefas de Nota Fiscal e Contrato.`,
+              });
+            }
           }
 
           return true;
@@ -219,6 +244,22 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
             return false;
           }
 
+          if (
+            getIsContractGenerated(valueToPersist as string | null | undefined)
+          ) {
+            try {
+              await updateTodoTask({
+                opportunityId: recordId,
+                title: GSH_CONTRACT_TASK_TITLE,
+                updateOneRecordInput: { status: 'DONE' },
+              });
+            } catch {
+              enqueueErrorSnackBar({
+                message: t`Não foi possível sincronizar a tarefa de geração do contrato.`,
+              });
+            }
+          }
+
           return true;
         }
 
@@ -234,25 +275,17 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
             getIsServiceOrderReadyForPurchaseForm(
               valueToPersist as string | null | undefined,
             ) &&
-            serviceOrder?.status === 'PREPARING' &&
-            isDefined(serviceOrder.opportunityId)
+            isDefined(serviceOrder?.opportunityId)
           ) {
-            const opportunity = opportunities.find(
-              (record) => record.id === serviceOrder.opportunityId,
-            );
-
-            // Skip rather than fall back to the current user as assignee:
-            // every chain task must go to the deal owner, never to whoever
-            // happens to be performing the edit.
-            if (isDefined(opportunity)) {
-              createDripTask({
-                title: GSH_PURCHASE_FORM_TASK_TITLE,
+            try {
+              await updateTodoTask({
                 opportunityId: serviceOrder.opportunityId,
-                assigneeId: opportunity.ownerId,
-              }).catch(() => {
-                enqueueErrorSnackBar({
-                  message: t`Não foi possível criar a tarefa do Formulário de Compra.`,
-                });
+                title: GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
+                updateOneRecordInput: { status: 'DONE' },
+              });
+            } catch {
+              enqueueErrorSnackBar({
+                message: t`Não foi possível sincronizar a tarefa de Ordem de Serviço.`,
               });
             }
           }
@@ -262,7 +295,7 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
 
         return true;
       },
-      [createDripTask, enqueueErrorSnackBar, opportunities, serviceOrders],
+      [enqueueErrorSnackBar, opportunities, serviceOrders, updateTodoTask],
     );
 
   useRegisterRecordFieldPersistGateHandler(

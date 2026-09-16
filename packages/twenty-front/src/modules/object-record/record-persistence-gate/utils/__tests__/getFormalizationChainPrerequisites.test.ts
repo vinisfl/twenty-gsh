@@ -1,4 +1,5 @@
 import {
+  getIsContractGenerated,
   getIsInvoiceIssuedForContract,
   getIsPurchaseFormSentForInvoice,
   getIsServiceOrderReadyForPurchaseForm,
@@ -42,5 +43,17 @@ describe('getIsInvoiceIssuedForContract', () => {
 
   it('is registered once issued', () => {
     expect(getIsInvoiceIssuedForContract('ISSUED')).toBe(true);
+  });
+});
+
+describe('getIsContractGenerated', () => {
+  it('is not generated before the contract has been sent', () => {
+    expect(getIsContractGenerated('NOT_STARTED')).toBe(false);
+    expect(getIsContractGenerated(undefined)).toBe(false);
+  });
+
+  it('is generated once it has been sent or signed', () => {
+    expect(getIsContractGenerated('SENT')).toBe(true);
+    expect(getIsContractGenerated('SIGNED')).toBe(true);
   });
 });

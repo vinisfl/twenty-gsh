@@ -6,14 +6,14 @@ import { recordFieldPersistGateHandlerState } from '@/object-record/record-persi
 import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import { getJestMetadataAndApolloMocksWrapper } from '~/testing/jest/getJestMetadataAndApolloMocksWrapper';
 
-const mockCreateTask = jest.fn();
-const mockCreateTaskTarget = jest.fn();
+const mockUpdateOneRecord = jest.fn();
 const mockEnqueueErrorSnackBar = jest.fn();
 
 const EVENT_SERVICE_ORDER_OBJECT_NAME_SINGULAR = 'eventServiceOrder';
 
 let opportunityRecords: unknown[] = [];
 let serviceOrderRecords: unknown[] = [];
+let taskTargetRecords: unknown[] = [];
 
 jest.mock('@/object-record/hooks/useFindManyRecords', () => ({
   useFindManyRecords: ({
@@ -23,32 +23,17 @@ jest.mock('@/object-record/hooks/useFindManyRecords', () => ({
   }) =>
     objectNameSingular === CoreObjectNameSingular.Opportunity
       ? { records: opportunityRecords, loading: false }
-      : { records: serviceOrderRecords, loading: false },
+      : objectNameSingular === CoreObjectNameSingular.TaskTarget
+        ? { records: taskTargetRecords, loading: false }
+        : { records: serviceOrderRecords, loading: false },
 }));
 
-jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
-  useCreateOneRecord: ({
-    objectNameSingular,
-  }: {
-    objectNameSingular: string;
-  }) => {
-    switch (objectNameSingular) {
-      case CoreObjectNameSingular.Task:
-        return { createOneRecord: mockCreateTask };
-      case CoreObjectNameSingular.TaskTarget:
-        return { createOneRecord: mockCreateTaskTarget };
-      default:
-        throw new Error(`Unexpected object: ${objectNameSingular}`);
-    }
-  },
+jest.mock('@/object-record/hooks/useUpdateOneRecord', () => ({
+  useUpdateOneRecord: () => ({ updateOneRecord: mockUpdateOneRecord }),
 }));
 
 jest.mock('@/ui/feedback/snack-bar-manager/hooks/useSnackBar', () => ({
   useSnackBar: () => ({ enqueueErrorSnackBar: mockEnqueueErrorSnackBar }),
-}));
-
-jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue', () => ({
-  useAtomStateValue: () => ({ id: 'current-member-1' }),
 }));
 
 jest.mock(
@@ -99,8 +84,41 @@ describe('OpportunityFormalizationChainGateHandler', () => {
         status: 'PREPARING',
       },
     ];
-    mockCreateTask.mockResolvedValue({ id: 'task-1' });
-    mockCreateTaskTarget.mockResolvedValue({ id: 'task-target-1' });
+    mockUpdateOneRecord.mockResolvedValue({ id: 'task-1' });
+    taskTargetRecords = [
+      {
+        id: 'task-target-os',
+        targetOpportunityId: 'opportunity-1',
+        task: {
+          id: 'task-os',
+          title: 'Gerar Ordem de Serviço',
+          status: 'TODO',
+        },
+      },
+      {
+        id: 'task-target-purchase-form',
+        targetOpportunityId: 'opportunity-1',
+        task: {
+          id: 'task-purchase-form',
+          title: 'Preencher Formulário de Compra',
+          status: 'TODO',
+        },
+      },
+      {
+        id: 'task-target-invoice',
+        targetOpportunityId: 'opportunity-1',
+        task: {
+          id: 'task-invoice',
+          title: 'Acompanhar emissão de NF junto ao financeiro',
+          status: 'TODO',
+        },
+      },
+      {
+        id: 'task-target-contract',
+        targetOpportunityId: 'opportunity-1',
+        task: { id: 'task-contract', title: 'Gerar contrato', status: 'TODO' },
+      },
+    ];
   });
 
   it('is a no-op for fields outside the formalization chain', async () => {
@@ -115,7 +133,7 @@ describe('OpportunityFormalizationChainGateHandler', () => {
       }),
     ).resolves.toBe(true);
     expect(mockEnqueueErrorSnackBar).not.toHaveBeenCalled();
-    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(mockUpdateOneRecord).not.toHaveBeenCalled();
   });
 
   describe('Formulário de Compra', () => {
@@ -133,7 +151,7 @@ describe('OpportunityFormalizationChainGateHandler', () => {
       expect(mockEnqueueErrorSnackBar).toHaveBeenCalledWith(
         expect.objectContaining({ message: expect.any(String) }),
       );
-      expect(mockCreateTask).not.toHaveBeenCalled();
+      expect(mockUpdateOneRecord).not.toHaveBeenCalled();
     });
 
     it('allows editing once the service order has been issued', async () => {
@@ -157,7 +175,7 @@ describe('OpportunityFormalizationChainGateHandler', () => {
       expect(mockEnqueueErrorSnackBar).not.toHaveBeenCalled();
     });
 
-    it('creates the NF follow-up task the first time it is marked as sent, and only then', async () => {
+    it('marks the purchase-form task as done once it is sent', async () => {
       serviceOrderRecords = [
         {
           id: 'service-order-1',
@@ -165,7 +183,7 @@ describe('OpportunityFormalizationChainGateHandler', () => {
           status: 'ISSUED',
         },
       ];
-      const { getHandler, rerenderHandler } = renderHandler();
+      const { getHandler } = renderHandler();
 
       await act(async () => {
         await getHandler()?.({
@@ -176,34 +194,11 @@ describe('OpportunityFormalizationChainGateHandler', () => {
         });
       });
 
-      expect(mockCreateTask).toHaveBeenCalledTimes(1);
-      expect(mockCreateTask).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Acompanhar emissão de NF junto ao financeiro',
-          assigneeId: 'owner-1',
-        }),
-      );
-      expect(mockCreateTaskTarget).toHaveBeenCalledWith({
-        taskId: 'task-1',
-        targetOpportunityId: 'opportunity-1',
+      expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+        objectNameSingular: CoreObjectNameSingular.Task,
+        idToUpdate: 'task-purchase-form',
+        updateOneRecordInput: { status: 'DONE' },
       });
-
-      // Already sent: re-saving the same value must not re-create the task.
-      opportunityRecords = [
-        { ...(opportunityRecords[0] as object), purchaseFormStatus: 'SENT' },
-      ];
-      const handlerAfterSent = rerenderHandler();
-
-      await act(async () => {
-        await handlerAfterSent?.({
-          objectNameSingular: CoreObjectNameSingular.Opportunity,
-          recordId: 'opportunity-1',
-          fieldName: 'purchaseFormStatus',
-          valueToPersist: 'SENT',
-        });
-      });
-
-      expect(mockCreateTask).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -219,10 +214,10 @@ describe('OpportunityFormalizationChainGateHandler', () => {
           valueToPersist: 'ISSUED',
         }),
       ).resolves.toBe(false);
-      expect(mockCreateTask).not.toHaveBeenCalled();
+      expect(mockUpdateOneRecord).not.toHaveBeenCalled();
     });
 
-    it('creates the contract task with a 7-day due date once the NF is registered', async () => {
+    it('marks the NF task done and starts the contract SLA once the NF is registered', async () => {
       opportunityRecords = [
         {
           id: 'opportunity-1',
@@ -243,15 +238,20 @@ describe('OpportunityFormalizationChainGateHandler', () => {
         });
       });
 
-      expect(mockCreateTask).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Gerar contrato',
-          assigneeId: 'owner-1',
-          dueAt: expect.any(String),
-        }),
-      );
+      expect(mockUpdateOneRecord).toHaveBeenNthCalledWith(1, {
+        objectNameSingular: CoreObjectNameSingular.Task,
+        idToUpdate: 'task-invoice',
+        updateOneRecordInput: { status: 'DONE' },
+      });
+      expect(mockUpdateOneRecord).toHaveBeenNthCalledWith(2, {
+        objectNameSingular: CoreObjectNameSingular.Task,
+        idToUpdate: 'task-contract',
+        updateOneRecordInput: { dueAt: expect.any(String) },
+      });
 
-      const dueAt = new Date(mockCreateTask.mock.calls[0][0].dueAt).getTime();
+      const dueAt = new Date(
+        mockUpdateOneRecord.mock.calls[1][0].updateOneRecordInput.dueAt,
+      ).getTime();
       const expectedDueAt = Date.now() + 7 * 24 * 60 * 60 * 1_000;
       expect(Math.abs(dueAt - expectedDueAt)).toBeLessThan(5_000);
     });
@@ -271,7 +271,7 @@ describe('OpportunityFormalizationChainGateHandler', () => {
       ).resolves.toBe(false);
     });
 
-    it('allows editing once the NF has been issued and does not create a further task', async () => {
+    it('marks the contract task done once the contract is sent', async () => {
       opportunityRecords = [
         {
           id: 'opportunity-1',
@@ -291,7 +291,11 @@ describe('OpportunityFormalizationChainGateHandler', () => {
           valueToPersist: 'SENT',
         }),
       ).resolves.toBe(true);
-      expect(mockCreateTask).not.toHaveBeenCalled();
+      expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+        objectNameSingular: CoreObjectNameSingular.Task,
+        idToUpdate: 'task-contract',
+        updateOneRecordInput: { status: 'DONE' },
+      });
     });
   });
 
@@ -309,71 +313,16 @@ describe('OpportunityFormalizationChainGateHandler', () => {
       ).resolves.toBe(true);
     });
 
-    it('creates the purchase-form task the first time it is marked as issued, and only then', async () => {
-      const { getHandler, rerenderHandler } = renderHandler();
-
-      await act(async () => {
-        await getHandler()?.({
-          objectNameSingular: EVENT_SERVICE_ORDER_OBJECT_NAME_SINGULAR,
-          recordId: 'service-order-1',
-          fieldName: 'status',
-          valueToPersist: 'ISSUED',
-        });
-      });
-
-      expect(mockCreateTask).toHaveBeenCalledTimes(1);
-      expect(mockCreateTask).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Preencher Formulário de Compra',
-          assigneeId: 'owner-1',
-        }),
-      );
-      expect(mockCreateTaskTarget).toHaveBeenCalledWith({
-        taskId: 'task-1',
-        targetOpportunityId: 'opportunity-1',
-      });
-
-      // Already issued: distributing later must not re-create the task.
-      serviceOrderRecords = [
-        {
-          id: 'service-order-1',
-          opportunityId: 'opportunity-1',
-          status: 'ISSUED',
+    it('marks the service-order task done once it is issued', async () => {
+      taskTargetRecords.unshift({
+        id: 'task-target-other-opportunity',
+        targetOpportunityId: 'opportunity-2',
+        task: {
+          id: 'task-os-other-opportunity',
+          title: 'Gerar Ordem de Serviço',
+          status: 'TODO',
         },
-      ];
-      const handlerAfterIssued = rerenderHandler();
-
-      await act(async () => {
-        await handlerAfterIssued?.({
-          objectNameSingular: EVENT_SERVICE_ORDER_OBJECT_NAME_SINGULAR,
-          recordId: 'service-order-1',
-          fieldName: 'status',
-          valueToPersist: 'DISTRIBUTED',
-        });
       });
-
-      expect(mockCreateTask).toHaveBeenCalledTimes(1);
-    });
-
-    it('still creates the purchase-form task when the status jumps straight past "issued"', async () => {
-      const { getHandler } = renderHandler();
-
-      await act(async () => {
-        await getHandler()?.({
-          objectNameSingular: EVENT_SERVICE_ORDER_OBJECT_NAME_SINGULAR,
-          recordId: 'service-order-1',
-          fieldName: 'status',
-          valueToPersist: 'DISTRIBUTED',
-        });
-      });
-
-      expect(mockCreateTask).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Preencher Formulário de Compra' }),
-      );
-    });
-
-    it('skips the task rather than assigning it to the current user when the opportunity cannot be resolved', async () => {
-      opportunityRecords = [];
       const { getHandler } = renderHandler();
 
       await act(async () => {
@@ -385,7 +334,30 @@ describe('OpportunityFormalizationChainGateHandler', () => {
         });
       });
 
-      expect(mockCreateTask).not.toHaveBeenCalled();
+      expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+        objectNameSingular: CoreObjectNameSingular.Task,
+        idToUpdate: 'task-os',
+        updateOneRecordInput: { status: 'DONE' },
+      });
+    });
+
+    it('marks the service-order task done when the status jumps past issued', async () => {
+      const { getHandler } = renderHandler();
+
+      await act(async () => {
+        await getHandler()?.({
+          objectNameSingular: EVENT_SERVICE_ORDER_OBJECT_NAME_SINGULAR,
+          recordId: 'service-order-1',
+          fieldName: 'status',
+          valueToPersist: 'DISTRIBUTED',
+        });
+      });
+
+      expect(mockUpdateOneRecord).toHaveBeenCalledWith({
+        objectNameSingular: CoreObjectNameSingular.Task,
+        idToUpdate: 'task-os',
+        updateOneRecordInput: { status: 'DONE' },
+      });
     });
   });
 });

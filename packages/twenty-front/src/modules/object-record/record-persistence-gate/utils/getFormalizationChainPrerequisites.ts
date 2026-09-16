@@ -5,6 +5,7 @@
 // still counts as unlocking the next one.
 const SERVICE_ORDER_READY_STATUSES = ['ISSUED', 'DISTRIBUTED', 'COMPLETED'];
 const PURCHASE_FORM_SENT_STATUSES = ['SENT', 'COMPLETED'];
+const CONTRACT_GENERATED_STATUSES = ['SENT', 'SIGNED'];
 
 export const getIsServiceOrderReadyForPurchaseForm = (
   serviceOrderStatus: string | null | undefined,
@@ -23,3 +24,10 @@ export const getIsPurchaseFormSentForInvoice = (
 export const getIsInvoiceIssuedForContract = (
   invoiceStatus: string | null | undefined,
 ): boolean => invoiceStatus === 'ISSUED';
+
+export const getIsContractGenerated = (
+  contractStatus: string | null | undefined,
+): boolean =>
+  contractStatus !== null &&
+  contractStatus !== undefined &&
+  CONTRACT_GENERATED_STATUSES.includes(contractStatus);
