@@ -1,4 +1,10 @@
-import { Fragment, type CSSProperties, useCallback, useEffect, useState } from 'react';
+import {
+  Fragment,
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import { CoreApiClient } from 'twenty-client-sdk/core';
 import { defineFrontComponent } from 'twenty-sdk/define';
@@ -22,6 +28,25 @@ import {
   type LinkedTask,
 } from 'src/front-components/utils/get-next-open-task.util';
 import { ensureResizeObserver } from 'src/front-components/utils/ensure-resize-observer.util';
+import {
+  getIsContractGenerated,
+  getIsInvoiceIssuedForContract,
+  getIsPurchaseFormSentForInvoice,
+  getIsServiceOrderReadyForPurchaseForm,
+} from 'src/front-components/utils/get-formalization-chain-prerequisites.util';
+import {
+  CONTRACT_STATUS,
+  INVOICE_STATUS,
+  PURCHASE_FORM_STATUS,
+  SERVICE_ORDER_STATUS,
+} from 'src/constants/domain-options';
+import {
+  GSH_CONTRACT_TASK_TITLE,
+  GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
+  GSH_INVOICE_FOLLOWUP_TASK_TITLE,
+  GSH_PURCHASE_FORM_TASK_TITLE,
+} from 'src/constants/gsh-task-titles';
+import { GSH_CONTRACT_TASK_DUE_DAYS } from 'src/constants/gsh-contract-task-due-days';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
 
@@ -70,7 +95,11 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 500,
   },
   section: { display: 'flex', flexDirection: 'column', gap: theme.spacing1 },
-  stepperColumn: { display: 'flex', flexDirection: 'column', gap: theme.spacing1 },
+  stepperColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing1,
+  },
   stepperRow: { display: 'flex', alignItems: 'center', width: '100%' },
   connector: { flex: 1, height: '2px', minWidth: theme.spacing2 },
   currentStepLabel: { fontSize: theme.sizeXs, fontWeight: 600 },
@@ -136,6 +165,16 @@ const styles: Record<string, CSSProperties> = {
     fontSize: theme.sizeXs,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  inlineSelect: {
+    width: '100%',
+    padding: theme.spacing2,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 'var(--t-border-radius-sm)',
+    background: theme.backgroundPrimary,
+    color: theme.fontPrimary,
+    fontFamily: theme.fontFamily,
+    fontSize: theme.sizeSm,
   },
   completeButton: {
     borderColor: 'var(--t-tag-text-green)',
@@ -256,7 +295,9 @@ const Stepper = ({ currentValue }: { currentValue: string | null }) => {
       <span
         style={{
           ...styles.currentStepLabel,
-          color: currentStep ? `var(--t-tag-text-${currentStep.color})` : theme.fontTertiary,
+          color: currentStep
+            ? `var(--t-tag-text-${currentStep.color})`
+            : theme.fontTertiary,
         }}
       >
         {currentStep ? currentStep.label : 'Etapa não reconhecida'}
@@ -283,7 +324,166 @@ type OpportunityStatusRecord = {
   eventCurrentPending: string | null;
   eventNextAction: string | null;
   eventNextActionAt: string | null;
+  purchaseFormStatus: string | null;
+  invoiceStatus: string | null;
+  contractStatus: string | null;
+  serviceOrder: { id: string; status: string | null } | null;
   tasks: LinkedTask[];
+};
+
+type StatusOption = { value: string; label: string };
+
+type FormalizationTaskKind =
+  'SERVICE_ORDER' | 'PURCHASE_FORM' | 'INVOICE' | 'CONTRACT';
+
+type FormalizationPanel = {
+  task: LinkedTask;
+  kind: FormalizationTaskKind;
+  label: string;
+  options: StatusOption[];
+  value: string;
+};
+
+const serviceOrderStatusOptions: StatusOption[] = [
+  { value: SERVICE_ORDER_STATUS.PREPARING, label: 'Em preparação' },
+  { value: SERVICE_ORDER_STATUS.ISSUED, label: 'Emitida' },
+  { value: SERVICE_ORDER_STATUS.DISTRIBUTED, label: 'Distribuída' },
+  { value: SERVICE_ORDER_STATUS.COMPLETED, label: 'Concluída' },
+];
+
+const purchaseFormStatusOptions: StatusOption[] = [
+  { value: PURCHASE_FORM_STATUS.NOT_STARTED, label: 'Não iniciado' },
+  { value: PURCHASE_FORM_STATUS.SENT, label: 'Enviado' },
+  { value: PURCHASE_FORM_STATUS.COMPLETED, label: 'Concluído' },
+];
+
+const invoiceStatusOptions: StatusOption[] = [
+  { value: INVOICE_STATUS.NOT_REQUESTED, label: 'Não solicitada' },
+  { value: INVOICE_STATUS.REQUESTED, label: 'Solicitada' },
+  { value: INVOICE_STATUS.ISSUED, label: 'Emitida' },
+];
+
+const contractStatusOptions: StatusOption[] = [
+  { value: CONTRACT_STATUS.NOT_STARTED, label: 'Não iniciado' },
+  { value: CONTRACT_STATUS.SENT, label: 'Enviado' },
+  { value: CONTRACT_STATUS.SIGNED, label: 'Assinado' },
+];
+
+type OpportunityFormalizationField =
+  'purchaseFormStatus' | 'invoiceStatus' | 'contractStatus';
+
+type FormalizationTaskDefinition = {
+  title: string;
+  label: string;
+  options: StatusOption[];
+  isCompletionStatus: (value: string | null | undefined) => boolean;
+  getValue: (record: OpportunityStatusRecord | null) => string;
+  getPrerequisiteError: (
+    record: OpportunityStatusRecord | null,
+  ) => string | null;
+  applyValue: (
+    record: OpportunityStatusRecord,
+    value: string,
+  ) => OpportunityStatusRecord;
+} & (
+  | { target: 'SERVICE_ORDER' }
+  | { target: 'OPPORTUNITY'; field: OpportunityFormalizationField }
+);
+
+const formalizationTaskDefinitions: Record<
+  FormalizationTaskKind,
+  FormalizationTaskDefinition
+> = {
+  SERVICE_ORDER: {
+    title: GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
+    label: 'Status da Ordem de Serviço',
+    options: serviceOrderStatusOptions,
+    target: 'SERVICE_ORDER',
+    isCompletionStatus: getIsServiceOrderReadyForPurchaseForm,
+    getValue: (record) =>
+      record?.serviceOrder?.status ?? SERVICE_ORDER_STATUS.PREPARING,
+    getPrerequisiteError: () => null,
+    applyValue: (record, value) => ({
+      ...record,
+      serviceOrder: record.serviceOrder
+        ? { ...record.serviceOrder, status: value }
+        : record.serviceOrder,
+    }),
+  },
+  PURCHASE_FORM: {
+    title: GSH_PURCHASE_FORM_TASK_TITLE,
+    label: 'Formulário de Compra',
+    options: purchaseFormStatusOptions,
+    target: 'OPPORTUNITY',
+    field: 'purchaseFormStatus',
+    isCompletionStatus: getIsPurchaseFormSentForInvoice,
+    getValue: (record) =>
+      record?.purchaseFormStatus ?? PURCHASE_FORM_STATUS.NOT_STARTED,
+    getPrerequisiteError: (record) =>
+      getIsServiceOrderReadyForPurchaseForm(record?.serviceOrder?.status)
+        ? null
+        : 'Gere a Ordem de Serviço antes de editar o Formulário de Compra.',
+    applyValue: (record, value) => ({ ...record, purchaseFormStatus: value }),
+  },
+  INVOICE: {
+    title: GSH_INVOICE_FOLLOWUP_TASK_TITLE,
+    label: 'Nota Fiscal',
+    options: invoiceStatusOptions,
+    target: 'OPPORTUNITY',
+    field: 'invoiceStatus',
+    isCompletionStatus: getIsInvoiceIssuedForContract,
+    getValue: (record) => record?.invoiceStatus ?? INVOICE_STATUS.NOT_REQUESTED,
+    getPrerequisiteError: (record) =>
+      getIsPurchaseFormSentForInvoice(record?.purchaseFormStatus)
+        ? null
+        : 'Marque o Formulário de Compra como enviado antes de editar a Nota Fiscal.',
+    applyValue: (record, value) => ({ ...record, invoiceStatus: value }),
+  },
+  CONTRACT: {
+    title: GSH_CONTRACT_TASK_TITLE,
+    label: 'Contrato',
+    options: contractStatusOptions,
+    target: 'OPPORTUNITY',
+    field: 'contractStatus',
+    isCompletionStatus: getIsContractGenerated,
+    getValue: (record) => record?.contractStatus ?? CONTRACT_STATUS.NOT_STARTED,
+    getPrerequisiteError: (record) =>
+      getIsInvoiceIssuedForContract(record?.invoiceStatus)
+        ? null
+        : 'Registre a Nota Fiscal antes de editar o Contrato.',
+    applyValue: (record, value) => ({ ...record, contractStatus: value }),
+  },
+};
+
+const getFormalizationTaskKind = (
+  title: string | null,
+): FormalizationTaskKind | null =>
+  (
+    Object.entries(formalizationTaskDefinitions) as [
+      FormalizationTaskKind,
+      FormalizationTaskDefinition,
+    ][]
+  ).find(([, definition]) => definition.title === title?.trim())?.[0] ?? null;
+
+const getFormalizationPanel = (
+  task: LinkedTask,
+  record: OpportunityStatusRecord | null,
+): FormalizationPanel | null => {
+  const kind = getFormalizationTaskKind(task.title);
+
+  if (!kind) {
+    return null;
+  }
+
+  const definition = formalizationTaskDefinitions[kind];
+
+  return {
+    task,
+    kind,
+    label: definition.label,
+    options: definition.options,
+    value: definition.getValue(record),
+  };
 };
 
 const formatDateTime = (value: string | null): string => {
@@ -305,11 +505,12 @@ const formatDateTime = (value: string | null): string => {
 
 const StatusNow = () => {
   const { t } = useTranslate();
-  const opportunityId = useFrontComponentExecutionContext((context) =>
-    context.recordId ??
-    (context.selectedRecordIds.length === 1
-      ? context.selectedRecordIds[0]
-      : null),
+  const opportunityId = useFrontComponentExecutionContext(
+    (context) =>
+      context.recordId ??
+      (context.selectedRecordIds.length === 1
+        ? context.selectedRecordIds[0]
+        : null),
   );
   const [record, setRecord] = useState<OpportunityStatusRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -317,6 +518,8 @@ const StatusNow = () => {
   const [isResolvingPending, setIsResolvingPending] = useState(false);
   const [isUpdatingNextAction, setIsUpdatingNextAction] = useState(false);
   const [rescheduleValue, setRescheduleValue] = useState<Date | null>(null);
+  const [formalizationPanel, setFormalizationPanel] =
+    useState<FormalizationPanel | null>(null);
 
   const load = useCallback(async () => {
     if (!opportunityId) {
@@ -327,7 +530,7 @@ const StatusNow = () => {
     setLoading(true);
     setError(false);
     try {
-      const result = await new CoreApiClient().query({
+      const result = (await new CoreApiClient().query({
         opportunity: {
           __args: { filter: { id: { eq: opportunityId } } },
           eventProcessStage: true,
@@ -335,6 +538,14 @@ const StatusNow = () => {
           eventCurrentPending: true,
           eventNextAction: true,
           eventNextActionAt: true,
+          purchaseFormStatus: true,
+          invoiceStatus: true,
+          contractStatus: true,
+          eventServiceOrders: {
+            edges: {
+              node: { id: true, status: true },
+            },
+          },
         },
         taskTargets: {
           __args: { filter: { targetOpportunityId: { eq: opportunityId } } },
@@ -350,9 +561,41 @@ const StatusNow = () => {
             },
           },
         },
-      });
+      } as never)) as unknown as {
+        opportunity?: {
+          eventProcessStage?: string | null;
+          eventCurrentSituation?: string | null;
+          eventCurrentPending?: string | null;
+          eventNextAction?: string | null;
+          eventNextActionAt?: string | null;
+          purchaseFormStatus?: string | null;
+          invoiceStatus?: string | null;
+          contractStatus?: string | null;
+          eventServiceOrders?: {
+            edges?: Array<{
+              node: { id?: string | null; status?: string | null };
+            }>;
+          } | null;
+        } | null;
+        taskTargets?: {
+          edges?: Array<{
+            node: {
+              task?: {
+                id?: string | null;
+                title?: string | null;
+                dueAt?: string | null;
+                status?: string | null;
+                position?: number | null;
+              } | null;
+            };
+          }>;
+        } | null;
+      };
 
       const found = result?.opportunity;
+      const serviceOrder = found?.eventServiceOrders?.edges?.find(
+        ({ node }) => node.id,
+      )?.node;
       const tasks: LinkedTask[] = [];
       for (const { node } of result?.taskTargets?.edges ?? []) {
         const task = node.task;
@@ -372,6 +615,12 @@ const StatusNow = () => {
         eventCurrentPending: found?.eventCurrentPending ?? null,
         eventNextAction: found?.eventNextAction ?? null,
         eventNextActionAt: found?.eventNextActionAt ?? null,
+        purchaseFormStatus: found?.purchaseFormStatus ?? null,
+        invoiceStatus: found?.invoiceStatus ?? null,
+        contractStatus: found?.contractStatus ?? null,
+        serviceOrder: serviceOrder?.id
+          ? { id: serviceOrder.id, status: serviceOrder.status ?? null }
+          : null,
         tasks,
       });
     } catch {
@@ -505,6 +754,52 @@ const StatusNow = () => {
     }
   };
 
+  const persistFormalizationStatus = async (
+    panel: FormalizationPanel,
+    value: string,
+  ) => {
+    const client = new CoreApiClient();
+    const definition = formalizationTaskDefinitions[panel.kind];
+
+    if (definition.target === 'SERVICE_ORDER') {
+      const serviceOrderId = record?.serviceOrder?.id;
+
+      if (!serviceOrderId) {
+        throw new Error(
+          t('Não foi possível encontrar a Ordem de Serviço vinculada.'),
+        );
+      }
+
+      const result = (await client.mutation({
+        updateEventServiceOrder: {
+          __args: { id: serviceOrderId, data: { status: value } },
+          id: true,
+        },
+      } as never)) as unknown as { updateEventServiceOrder?: { id?: string } };
+
+      if (!result.updateEventServiceOrder?.id) {
+        throw new Error(t('Não foi possível atualizar a Ordem de Serviço.'));
+      }
+
+      return;
+    }
+
+    if (!opportunityId) {
+      throw new Error(t('Oportunidade não encontrada.'));
+    }
+
+    const result = (await client.mutation({
+      updateOpportunity: {
+        __args: { id: opportunityId, data: { [definition.field]: value } },
+        id: true,
+      },
+    } as never)) as unknown as { updateOpportunity?: { id?: string } };
+
+    if (!result.updateOpportunity?.id) {
+      throw new Error(t('Não foi possível atualizar a oportunidade.'));
+    }
+  };
+
   const storeRescheduleHistory = async ({
     taskTitle,
     previousDueAt,
@@ -538,7 +833,9 @@ const StatusNow = () => {
     });
 
     if (!noteResult.createNote?.id) {
-      throw new Error(t('Não foi possível armazenar o histórico do reagendamento.'));
+      throw new Error(
+        t('Não foi possível armazenar o histórico do reagendamento.'),
+      );
     }
 
     const targetResult = await new CoreApiClient().mutation({
@@ -554,7 +851,9 @@ const StatusNow = () => {
     });
 
     if (!targetResult.createNoteTarget?.id) {
-      throw new Error(t('Não foi possível vincular o histórico à oportunidade.'));
+      throw new Error(
+        t('Não foi possível vincular o histórico à oportunidade.'),
+      );
     }
   };
 
@@ -566,6 +865,13 @@ const StatusNow = () => {
     setIsUpdatingNextAction(true);
     try {
       const task = await getOrCreateNextTask();
+      const panel = getFormalizationPanel(task, record);
+
+      if (panel) {
+        setFormalizationPanel(panel);
+        return;
+      }
+
       await updateTask(task.id, { status: 'DONE' });
 
       setRecord((currentRecord) =>
@@ -582,6 +888,87 @@ const StatusNow = () => {
             }
           : currentRecord,
       );
+    } catch (updateError) {
+      await enqueueSnackbar({
+        message:
+          updateError instanceof Error
+            ? updateError.message
+            : t('Não foi possível concluir a próxima ação. Tente novamente.'),
+        variant: 'error',
+      });
+    } finally {
+      setIsUpdatingNextAction(false);
+    }
+  };
+
+  const saveFormalizationStatus = async () => {
+    if (!formalizationPanel || isUpdatingNextAction) {
+      return;
+    }
+
+    setIsUpdatingNextAction(true);
+    try {
+      const definition = formalizationTaskDefinitions[formalizationPanel.kind];
+      const prerequisiteError = definition.getPrerequisiteError(record);
+
+      if (prerequisiteError) {
+        throw new Error(t(prerequisiteError));
+      }
+
+      if (!definition.isCompletionStatus(formalizationPanel.value)) {
+        throw new Error(
+          t('Selecione um status que conclua esta tarefa antes de salvar.'),
+        );
+      }
+
+      const shouldSetContractDueAt =
+        formalizationPanel.kind === 'INVOICE' &&
+        !getIsInvoiceIssuedForContract(record?.invoiceStatus);
+      const contractTask = shouldSetContractDueAt
+        ? getNextOpenTaskWithTitle(record?.tasks ?? [], GSH_CONTRACT_TASK_TITLE)
+        : undefined;
+      const contractDueAt = contractTask
+        ? new Date(
+            Date.now() + GSH_CONTRACT_TASK_DUE_DAYS * 24 * 60 * 60 * 1_000,
+          ).toISOString()
+        : undefined;
+
+      await persistFormalizationStatus(
+        formalizationPanel,
+        formalizationPanel.value,
+      );
+      await updateTask(formalizationPanel.task.id, { status: 'DONE' });
+
+      if (contractTask && contractDueAt) {
+        await updateTask(contractTask.id, { dueAt: contractDueAt });
+      }
+
+      setRecord((currentRecord) => {
+        if (!currentRecord) {
+          return currentRecord;
+        }
+
+        const value = formalizationPanel.value;
+        const updatedRecord = {
+          ...currentRecord,
+          eventNextAction: null,
+          eventNextActionAt: null,
+          tasks: currentRecord.tasks.map((task) => {
+            if (task.id === formalizationPanel.task.id) {
+              return { ...task, status: 'DONE' };
+            }
+
+            if (contractTask && task.id === contractTask.id && contractDueAt) {
+              return { ...task, dueAt: contractDueAt };
+            }
+
+            return task;
+          }),
+        };
+
+        return definition.applyValue(updatedRecord, value);
+      });
+      setFormalizationPanel(null);
     } catch (updateError) {
       await enqueueSnackbar({
         message:
@@ -667,8 +1054,7 @@ const StatusNow = () => {
     nextTask?.title?.trim() ||
     (canCreateLegacyTask ? legacyNextAction : undefined);
   const nextActionAt =
-    nextTask?.dueAt ??
-    (canCreateLegacyTask ? record.eventNextActionAt : null);
+    nextTask?.dueAt ?? (canCreateLegacyTask ? record.eventNextActionAt : null);
 
   return (
     <div style={styles.shell}>
@@ -686,9 +1072,11 @@ const StatusNow = () => {
           <>
             <div style={styles.nextActionDetails}>
               <span style={styles.nextActionTitle}>{nextActionTitle}</span>
-              <span style={styles.nextActionDate}>{formatDateTime(nextActionAt)}</span>
+              <span style={styles.nextActionDate}>
+                {formatDateTime(nextActionAt)}
+              </span>
             </div>
-            {rescheduleValue === null ? (
+            {rescheduleValue === null && formalizationPanel === null ? (
               <div style={styles.actionControls}>
                 <button
                   type="button"
@@ -696,7 +1084,11 @@ const StatusNow = () => {
                   onClick={() => void completeNextAction()}
                   disabled={isUpdatingNextAction}
                 >
-                  {isUpdatingNextAction ? <Trans>Salvando…</Trans> : <Trans>Concluir</Trans>}
+                  {isUpdatingNextAction ? (
+                    <Trans>Salvando…</Trans>
+                  ) : (
+                    <Trans>Concluir</Trans>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -715,6 +1107,52 @@ const StatusNow = () => {
                 >
                   <Trans>Reagendar</Trans>
                 </button>
+              </div>
+            ) : formalizationPanel ? (
+              <div style={styles.rescheduleControls}>
+                <label style={styles.fieldLabel}>
+                  {formalizationPanel.label}
+                  <select
+                    style={styles.inlineSelect}
+                    value={formalizationPanel.value}
+                    onChange={(event) =>
+                      setFormalizationPanel((currentPanel) =>
+                        currentPanel
+                          ? { ...currentPanel, value: event.target.value }
+                          : currentPanel,
+                      )
+                    }
+                    disabled={isUpdatingNextAction}
+                  >
+                    {formalizationPanel.options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div style={styles.actionControls}>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => void saveFormalizationStatus()}
+                    disabled={isUpdatingNextAction}
+                  >
+                    {isUpdatingNextAction ? (
+                      <Trans>Salvando…</Trans>
+                    ) : (
+                      <Trans>Salvar</Trans>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => setFormalizationPanel(null)}
+                    disabled={isUpdatingNextAction}
+                  >
+                    <Trans>Cancelar</Trans>
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={styles.rescheduleControls}>
@@ -738,7 +1176,11 @@ const StatusNow = () => {
                     onClick={() => void saveReschedule()}
                     disabled={isUpdatingNextAction || !rescheduleValue}
                   >
-                    {isUpdatingNextAction ? <Trans>Salvando…</Trans> : <Trans>Salvar</Trans>}
+                    {isUpdatingNextAction ? (
+                      <Trans>Salvando…</Trans>
+                    ) : (
+                      <Trans>Salvar</Trans>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -770,7 +1212,11 @@ const StatusNow = () => {
             onClick={() => void resolveCurrentPending()}
             disabled={isResolvingPending}
           >
-            {isResolvingPending ? <Trans>Resolvendo…</Trans> : <Trans>Resolver</Trans>}
+            {isResolvingPending ? (
+              <Trans>Resolvendo…</Trans>
+            ) : (
+              <Trans>Resolver</Trans>
+            )}
           </button>
         </div>
       ) : null}

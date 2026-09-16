@@ -109,7 +109,7 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
       skip: opportunityIds.length === 0,
     });
 
-  const updateTodoTask = useCallback(
+  const updateIncompleteTask = useCallback(
     async ({
       opportunityId,
       title,
@@ -123,7 +123,7 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
         (taskTarget) =>
           taskTarget.targetOpportunityId === opportunityId &&
           taskTarget.task?.title === title &&
-          taskTarget.task.status === 'TODO',
+          taskTarget.task.status !== 'DONE',
       )?.task;
 
       if (!isDefined(task)) {
@@ -163,7 +163,7 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
             )
           ) {
             try {
-              await updateTodoTask({
+              await updateIncompleteTask({
                 opportunityId: recordId,
                 title: GSH_PURCHASE_FORM_TASK_TITLE,
                 updateOneRecordInput: { status: 'DONE' },
@@ -201,14 +201,14 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
             )
           ) {
             try {
-              await updateTodoTask({
+              await updateIncompleteTask({
                 opportunityId: recordId,
                 title: GSH_INVOICE_FOLLOWUP_TASK_TITLE,
                 updateOneRecordInput: { status: 'DONE' },
               });
 
               if (!getIsInvoiceIssuedForContract(opportunity?.invoiceStatus)) {
-                await updateTodoTask({
+                await updateIncompleteTask({
                   opportunityId: recordId,
                   title: GSH_CONTRACT_TASK_TITLE,
                   updateOneRecordInput: {
@@ -248,7 +248,7 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
             getIsContractGenerated(valueToPersist as string | null | undefined)
           ) {
             try {
-              await updateTodoTask({
+              await updateIncompleteTask({
                 opportunityId: recordId,
                 title: GSH_CONTRACT_TASK_TITLE,
                 updateOneRecordInput: { status: 'DONE' },
@@ -278,7 +278,7 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
             isDefined(serviceOrder?.opportunityId)
           ) {
             try {
-              await updateTodoTask({
+              await updateIncompleteTask({
                 opportunityId: serviceOrder.opportunityId,
                 title: GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
                 updateOneRecordInput: { status: 'DONE' },
@@ -295,7 +295,12 @@ const OpportunityFormalizationChainGateHandlerEffect = () => {
 
         return true;
       },
-      [enqueueErrorSnackBar, opportunities, serviceOrders, updateTodoTask],
+      [
+        enqueueErrorSnackBar,
+        opportunities,
+        serviceOrders,
+        updateIncompleteTask,
+      ],
     );
 
   useRegisterRecordFieldPersistGateHandler(
