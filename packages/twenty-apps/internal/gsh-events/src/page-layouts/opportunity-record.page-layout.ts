@@ -71,7 +71,7 @@ export default definePageLayout({
         },
         {
           universalIdentifier: OPPORTUNITY_POINT_OF_CONTACT_WIDGET_UNIVERSAL_IDENTIFIER,
-          title: 'Point of Contact',
+          title: 'Ponto de contato',
           type: 'FIELD',
           configuration: {
             configurationType: 'FIELD',

@@ -420,7 +420,7 @@ const StatusNow = () => {
 
   const createLinkedTask = async (title: string, dueAt: string | null) => {
     if (!opportunityId) {
-      throw new Error('Opportunity not found');
+      throw new Error(t('Oportunidade não encontrada.'));
     }
 
     const client = new CoreApiClient();
@@ -436,7 +436,7 @@ const StatusNow = () => {
     const task = taskResult.createTask as LinkedTask | undefined;
 
     if (!task?.id) {
-      throw new Error('Task creation did not return a record');
+      throw new Error(t('Não foi possível criar a tarefa.'));
     }
 
     const targetResult = await client.mutation({
@@ -449,7 +449,7 @@ const StatusNow = () => {
     });
 
     if (!targetResult.createTaskTarget?.id) {
-      throw new Error('Task link creation did not return a record');
+      throw new Error(t('Não foi possível vincular a tarefa à oportunidade.'));
     }
 
     setRecord((currentRecord) =>
@@ -477,7 +477,7 @@ const StatusNow = () => {
       !legacyNextAction ||
       (record && hasLinkedTaskWithTitle(record.tasks, legacyNextAction))
     ) {
-      throw new Error('Não existe uma próxima ação para atualizar.');
+      throw new Error(t('Não existe uma próxima ação para atualizar.'));
     }
 
     return createLinkedTask(
@@ -498,7 +498,7 @@ const StatusNow = () => {
     });
 
     if (!result.updateTask?.id) {
-      throw new Error('Task update did not return a record');
+      throw new Error(t('Não foi possível atualizar a tarefa.'));
     }
   };
 
@@ -512,7 +512,7 @@ const StatusNow = () => {
     dueAt: string;
   }) => {
     if (!opportunityId) {
-      throw new Error('Opportunity not found');
+      throw new Error(t('Oportunidade não encontrada.'));
     }
 
     const noteResult = await new CoreApiClient().mutation({
@@ -535,7 +535,7 @@ const StatusNow = () => {
     });
 
     if (!noteResult.createNote?.id) {
-      throw new Error('Não foi possível armazenar o histórico do reagendamento.');
+      throw new Error(t('Não foi possível armazenar o histórico do reagendamento.'));
     }
 
     const targetResult = await new CoreApiClient().mutation({
@@ -551,7 +551,7 @@ const StatusNow = () => {
     });
 
     if (!targetResult.createNoteTarget?.id) {
-      throw new Error('Não foi possível vincular o histórico à oportunidade.');
+      throw new Error(t('Não foi possível vincular o histórico à oportunidade.'));
     }
   };
 
