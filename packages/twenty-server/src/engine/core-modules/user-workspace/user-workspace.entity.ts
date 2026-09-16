@@ -4,7 +4,10 @@ import {
   PermissionFlagType,
   PermissionsOnAllObjectRecords,
 } from 'twenty-shared/constants';
-import { type APP_LOCALES, SOURCE_LOCALE } from 'twenty-shared/translations';
+import {
+  type APP_LOCALES,
+  DEFAULT_NEW_USER_LOCALE,
+} from 'twenty-shared/translations';
 import {
   Column,
   CreateDateColumn,
@@ -66,7 +69,11 @@ export class UserWorkspaceEntity extends WorkspaceRelatedEntity {
   defaultAvatarUrl: string;
 
   @Field(() => String, { nullable: false })
-  @Column({ nullable: false, default: SOURCE_LOCALE, type: 'varchar' })
+  @Column({
+    nullable: false,
+    default: DEFAULT_NEW_USER_LOCALE,
+    type: 'varchar',
+  })
   locale: keyof typeof APP_LOCALES;
 
   @Field()

@@ -158,6 +158,7 @@ import { EnforceTimelineActivityTypeEmitUniquenessFastInstanceCommand } from 'sr
 import { AddCommandMenuItemTargetObjectMetadataFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-35/2-35-instance-command-fast-1787573269955-add-command-menu-item-target-object-metadata';
 import { DropTimelineActivityTypeRendererFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-35/2-35-instance-command-fast-1787648000001-drop-timeline-activity-type-renderer';
 import { AddCountAndSumAggregateOperationFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-35/2-35-instance-command-fast-1787935762896-add-count-and-sum-aggregate-operation';
+import { SetDefaultLocalePtBrFastInstanceCommand } from 'src/database/commands/upgrade-version-command/2-35/2-35-instance-command-fast-1789553758504-set-default-locale-pt-br';
 
 export const INSTANCE_COMMANDS = [
   AddViewFieldGroupIdIndexOnViewFieldFastInstanceCommand,
@@ -318,4 +319,5 @@ export const INSTANCE_COMMANDS = [
   AddCommandMenuItemTargetObjectMetadataFastInstanceCommand,
   DropTimelineActivityTypeRendererFastInstanceCommand,
   AddCountAndSumAggregateOperationFastInstanceCommand,
+  SetDefaultLocalePtBrFastInstanceCommand,
 ];
