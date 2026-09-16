@@ -17,6 +17,7 @@ import { GateFieldWrapper } from '@/object-record/record-persistence-gate/compon
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
+import { GSH_PROPOSAL_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshProposalTaskTitle';
 import { OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityQualificationGateModalId';
 import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/hooks/useRegisterOpportunityStageAdvanceGateHandler';
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
@@ -310,7 +311,7 @@ const OpportunityQualificationGateModalContent = () => {
       }
 
       const task = await createTask({
-        title: t`Montar e enviar proposta`,
+        title: GSH_PROPOSAL_TASK_TITLE,
         dueAt: new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
         status: 'TODO',
         assigneeId: opportunity.ownerId ?? currentWorkspaceMember?.id ?? null,

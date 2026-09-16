@@ -3,6 +3,7 @@ export type LinkedTask = {
   title: string | null;
   dueAt: string | null;
   status: string | null;
+  position: number | null;
 };
 
 const dueAtSortValue = (dueAt: string | null): number => {
@@ -14,6 +15,13 @@ const dueAtSortValue = (dueAt: string | null): number => {
 
   return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
 };
+
+// GSH-specific: several tasks in the formalization chain (see
+// getFormalizationChainPrerequisites in twenty-front) are created without a
+// dueAt, so dueAtSortValue alone leaves them tied. `position` (Twenty's
+// native ordering field, set on creation) breaks that tie deterministically.
+const positionSortValue = (position: number | null): number =>
+  position === null ? Number.POSITIVE_INFINITY : position;
 
 const normalizeTaskTitle = (title: string): string =>
   title.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
@@ -33,7 +41,16 @@ export const getNextOpenTask = (
 ): LinkedTask | undefined =>
   tasks
     .filter((task) => task.status !== 'DONE')
-    .sort((left, right) => dueAtSortValue(left.dueAt) - dueAtSortValue(right.dueAt))[0];
+    .sort((left, right) => {
+      const leftDueAt = dueAtSortValue(left.dueAt);
+      const rightDueAt = dueAtSortValue(right.dueAt);
+
+      // Both infinite (no valid dueAt) would subtract to NaN, so compare by
+      // equality first rather than relying on a zero difference.
+      return leftDueAt !== rightDueAt
+        ? leftDueAt - rightDueAt
+        : positionSortValue(left.position) - positionSortValue(right.position);
+    })[0];
 
 export const getNextOpenTaskWithTitle = (
   tasks: LinkedTask[],

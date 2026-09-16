@@ -17,6 +17,7 @@ import { GateFieldWrapper } from '@/object-record/record-persistence-gate/compon
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
+import { GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshEventRegistrationRequestTaskTitle';
 import { OPPORTUNITY_ACCEPTANCE_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityAcceptanceGateModalId';
 import { useRegisterOpportunityStageAdvanceGateHandler } from '@/object-record/record-persistence-gate/hooks/useRegisterOpportunityStageAdvanceGateHandler';
 import { opportunityStageAdvancePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvancePendingRequestState';
@@ -34,9 +35,6 @@ import { ModalStatefulWrapper } from '@/ui/layout/modal/components/ModalStateful
 import { useModal } from '@/ui/layout/modal/hooks/useModal';
 import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-
-const GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE =
-  'Solicitar ficha cadastral ao cliente';
 
 const StyledCenteredTitle = styled.div`
   text-align: center;

@@ -345,6 +345,7 @@ const StatusNow = () => {
                 title: true,
                 dueAt: true,
                 status: true,
+                position: true,
               },
             },
           },
@@ -361,6 +362,7 @@ const StatusNow = () => {
             title: task.title ?? null,
             dueAt: task.dueAt ?? null,
             status: task.status ?? null,
+            position: task.position ?? null,
           });
         }
       }
@@ -431,6 +433,7 @@ const StatusNow = () => {
         title: true,
         dueAt: true,
         status: true,
+        position: true,
       },
     });
     const task = taskResult.createTask as LinkedTask | undefined;
