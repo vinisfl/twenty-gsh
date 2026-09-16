@@ -15,6 +15,9 @@ export const GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE =
 
 export const GSH_PROPOSAL_TASK_TITLE = 'Montar e enviar proposta';
 
+export const GSH_PROPOSAL_FOLLOWUP_TASK_TITLE =
+  'Fazer follow-up da proposta';
+
 export const GSH_EVENT_SERVICE_ORDER_TASK_TITLE = 'Gerar Ordem de Serviço';
 
 export const GSH_PURCHASE_FORM_TASK_TITLE = 'Preencher Formulário de Compra';

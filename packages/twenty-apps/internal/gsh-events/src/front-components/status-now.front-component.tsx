@@ -38,15 +38,22 @@ import {
   CONTRACT_STATUS,
   INVOICE_STATUS,
   PURCHASE_FORM_STATUS,
+  PROPOSAL_STATUS,
   SERVICE_ORDER_STATUS,
 } from 'src/constants/domain-options';
 import {
   GSH_CONTRACT_TASK_TITLE,
   GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
+  GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE,
   GSH_INVOICE_FOLLOWUP_TASK_TITLE,
+  GSH_PROPOSAL_TASK_TITLE,
   GSH_PURCHASE_FORM_TASK_TITLE,
 } from 'src/constants/gsh-task-titles';
 import { GSH_CONTRACT_TASK_DUE_DAYS } from 'src/constants/gsh-contract-task-due-days';
+import {
+  completeProposalTask,
+  completeRegistrationRequestTask,
+} from 'src/front-components/services/complete-stage-transition-task.service';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
 
@@ -319,15 +326,24 @@ const SituationChip = ({ value }: { value: string | null }) => {
 };
 
 type OpportunityStatusRecord = {
+  ownerId: string | null;
   eventProcessStage: string | null;
   eventCurrentSituation: string | null;
   eventCurrentPending: string | null;
   eventNextAction: string | null;
   eventNextActionAt: string | null;
+  eventClosedAmount: { amountMicros: number; currencyCode: string } | null;
+  eventAcceptanceEvidence: string | null;
   purchaseFormStatus: string | null;
   invoiceStatus: string | null;
   contractStatus: string | null;
   serviceOrder: { id: string; status: string | null } | null;
+  proposals: Array<{
+    id: string;
+    version: number | null;
+    status: string | null;
+    sentAt: string | null;
+  }>;
   tasks: LinkedTask[];
 };
 
@@ -342,6 +358,18 @@ type FormalizationPanel = {
   label: string;
   options: StatusOption[];
   value: string;
+};
+
+type StageTransitionTaskKind = 'PROPOSAL' | 'REGISTRATION';
+
+type StageTransitionPanel = {
+  task: LinkedTask;
+  kind: StageTransitionTaskKind;
+  proposalId: string | null;
+  proposalStatus: string;
+  sentAt: string;
+  closedAmountBRL: string;
+  acceptanceEvidence: string;
 };
 
 const serviceOrderStatusOptions: StatusOption[] = [
@@ -486,6 +514,64 @@ const getFormalizationPanel = (
   };
 };
 
+const getLatestProposal = (record: OpportunityStatusRecord | null) =>
+  [...(record?.proposals ?? [])].sort(
+    (left, right) => (right.version ?? 0) - (left.version ?? 0),
+  )[0];
+
+const getStageTransitionPanel = (
+  task: LinkedTask,
+  record: OpportunityStatusRecord | null,
+): StageTransitionPanel | null => {
+  const title = task.title?.trim();
+  const proposal = getLatestProposal(record);
+
+  if (title === GSH_PROPOSAL_TASK_TITLE) {
+    return {
+      task,
+      kind: 'PROPOSAL',
+      proposalId: proposal?.id ?? null,
+      proposalStatus:
+        proposal?.status === PROPOSAL_STATUS.SENT ? PROPOSAL_STATUS.SENT : '',
+      sentAt: proposal?.sentAt ?? new Date().toISOString(),
+      closedAmountBRL: '',
+      acceptanceEvidence: '',
+    };
+  }
+
+  if (title === GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE) {
+    return {
+      task,
+      kind: 'REGISTRATION',
+      proposalId: proposal?.id ?? null,
+      proposalStatus:
+        proposal?.status === PROPOSAL_STATUS.ACCEPTED
+          ? PROPOSAL_STATUS.ACCEPTED
+          : '',
+      sentAt: '',
+      closedAmountBRL:
+        record?.eventClosedAmount?.amountMicros === undefined
+          ? ''
+          : String(record.eventClosedAmount.amountMicros / 1_000_000),
+      acceptanceEvidence: record?.eventAcceptanceEvidence ?? '',
+    };
+  }
+
+  return null;
+};
+
+const toDateTimeLocalValue = (value: string): string => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const timezoneOffset = date.getTimezoneOffset() * 60_000;
+
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
+};
+
 const formatDateTime = (value: string | null): string => {
   if (!value) {
     return 'Sem data definida';
@@ -520,6 +606,8 @@ const StatusNow = () => {
   const [rescheduleValue, setRescheduleValue] = useState<Date | null>(null);
   const [formalizationPanel, setFormalizationPanel] =
     useState<FormalizationPanel | null>(null);
+  const [stageTransitionPanel, setStageTransitionPanel] =
+    useState<StageTransitionPanel | null>(null);
 
   const load = useCallback(async () => {
     if (!opportunityId) {
@@ -533,17 +621,25 @@ const StatusNow = () => {
       const result = (await new CoreApiClient().query({
         opportunity: {
           __args: { filter: { id: { eq: opportunityId } } },
+          ownerId: true,
           eventProcessStage: true,
           eventCurrentSituation: true,
           eventCurrentPending: true,
           eventNextAction: true,
           eventNextActionAt: true,
+          eventClosedAmount: { amountMicros: true, currencyCode: true },
+          eventAcceptanceEvidence: true,
           purchaseFormStatus: true,
           invoiceStatus: true,
           contractStatus: true,
           eventServiceOrders: {
             edges: {
               node: { id: true, status: true },
+            },
+          },
+          eventProposals: {
+            edges: {
+              node: { id: true, version: true, status: true, sentAt: true },
             },
           },
         },
@@ -563,17 +659,33 @@ const StatusNow = () => {
         },
       } as never)) as unknown as {
         opportunity?: {
+          ownerId?: string | null;
           eventProcessStage?: string | null;
           eventCurrentSituation?: string | null;
           eventCurrentPending?: string | null;
           eventNextAction?: string | null;
           eventNextActionAt?: string | null;
+          eventClosedAmount?: {
+            amountMicros?: number | null;
+            currencyCode?: string | null;
+          } | null;
+          eventAcceptanceEvidence?: string | null;
           purchaseFormStatus?: string | null;
           invoiceStatus?: string | null;
           contractStatus?: string | null;
           eventServiceOrders?: {
             edges?: Array<{
               node: { id?: string | null; status?: string | null };
+            }>;
+          } | null;
+          eventProposals?: {
+            edges?: Array<{
+              node: {
+                id?: string | null;
+                version?: number | null;
+                status?: string | null;
+                sentAt?: string | null;
+              };
             }>;
           } | null;
         } | null;
@@ -596,6 +708,20 @@ const StatusNow = () => {
       const serviceOrder = found?.eventServiceOrders?.edges?.find(
         ({ node }) => node.id,
       )?.node;
+      const proposals = (found?.eventProposals?.edges ?? [])
+        .map(({ node }) => node)
+        .filter((proposal): proposal is {
+          id: string;
+          version?: number | null;
+          status?: string | null;
+          sentAt?: string | null;
+        } => Boolean(proposal.id))
+        .map((proposal) => ({
+          id: proposal.id,
+          version: proposal.version ?? null,
+          status: proposal.status ?? null,
+          sentAt: proposal.sentAt ?? null,
+        }));
       const tasks: LinkedTask[] = [];
       for (const { node } of result?.taskTargets?.edges ?? []) {
         const task = node.task;
@@ -610,17 +736,28 @@ const StatusNow = () => {
         }
       }
       setRecord({
+        ownerId: found?.ownerId ?? null,
         eventProcessStage: found?.eventProcessStage ?? null,
         eventCurrentSituation: found?.eventCurrentSituation ?? null,
         eventCurrentPending: found?.eventCurrentPending ?? null,
         eventNextAction: found?.eventNextAction ?? null,
         eventNextActionAt: found?.eventNextActionAt ?? null,
+        eventClosedAmount:
+          typeof found?.eventClosedAmount?.amountMicros === 'number' &&
+          found.eventClosedAmount.currencyCode
+            ? {
+                amountMicros: found.eventClosedAmount.amountMicros,
+                currencyCode: found.eventClosedAmount.currencyCode,
+              }
+            : null,
+        eventAcceptanceEvidence: found?.eventAcceptanceEvidence ?? null,
         purchaseFormStatus: found?.purchaseFormStatus ?? null,
         invoiceStatus: found?.invoiceStatus ?? null,
         contractStatus: found?.contractStatus ?? null,
         serviceOrder: serviceOrder?.id
           ? { id: serviceOrder.id, status: serviceOrder.status ?? null }
           : null,
+        proposals,
         tasks,
       });
     } catch {
@@ -872,6 +1009,13 @@ const StatusNow = () => {
         return;
       }
 
+      const stageTransitionTaskPanel = getStageTransitionPanel(task, record);
+
+      if (stageTransitionTaskPanel) {
+        setStageTransitionPanel(stageTransitionTaskPanel);
+        return;
+      }
+
       await updateTask(task.id, { status: 'DONE' });
 
       setRecord((currentRecord) =>
@@ -982,6 +1126,137 @@ const StatusNow = () => {
     }
   };
 
+  const saveStageTransitionTask = async () => {
+    if (!stageTransitionPanel || isUpdatingNextAction || !opportunityId) {
+      return;
+    }
+
+    if (!stageTransitionPanel.proposalId) {
+      await enqueueSnackbar({
+        message: t('Crie uma proposta antes de concluir esta tarefa.'),
+        variant: 'error',
+      });
+      return;
+    }
+
+    setIsUpdatingNextAction(true);
+    try {
+      const requiredProposalStatus =
+        stageTransitionPanel.kind === 'PROPOSAL'
+          ? PROPOSAL_STATUS.SENT
+          : PROPOSAL_STATUS.ACCEPTED;
+
+      if (stageTransitionPanel.proposalStatus !== requiredProposalStatus) {
+        throw new Error(t('Selecione o status da proposta antes de salvar.'));
+      }
+
+      if (stageTransitionPanel.kind === 'PROPOSAL') {
+        const sentAt = new Date(stageTransitionPanel.sentAt);
+
+        if (Number.isNaN(sentAt.getTime())) {
+          throw new Error(t('Informe quando a proposta foi enviada.'));
+        }
+
+        const followUpTask = await completeProposalTask({
+          client: new CoreApiClient(),
+          opportunityId,
+          proposalId: stageTransitionPanel.proposalId,
+          taskId: stageTransitionPanel.task.id,
+          sentAt: sentAt.toISOString(),
+          assigneeId: record?.ownerId ?? null,
+        });
+
+        setRecord((currentRecord) =>
+          currentRecord
+            ? {
+                ...currentRecord,
+                eventNextAction: null,
+                eventNextActionAt: null,
+                proposals: currentRecord.proposals.map((proposal) =>
+                  proposal.id === stageTransitionPanel.proposalId
+                    ? {
+                        ...proposal,
+                        status: PROPOSAL_STATUS.SENT,
+                        sentAt: sentAt.toISOString(),
+                      }
+                    : proposal,
+                ),
+                tasks: [
+                  ...currentRecord.tasks.map((task) =>
+                    task.id === stageTransitionPanel.task.id
+                      ? { ...task, status: 'DONE' }
+                      : task,
+                  ),
+                  followUpTask,
+                ],
+              }
+            : currentRecord,
+        );
+      } else {
+        const closedAmountBRL = Number(stageTransitionPanel.closedAmountBRL);
+        const acceptanceEvidence = stageTransitionPanel.acceptanceEvidence.trim();
+
+        if (
+          stageTransitionPanel.closedAmountBRL.trim() === '' ||
+          !Number.isFinite(closedAmountBRL) ||
+          closedAmountBRL < 0
+        ) {
+          throw new Error(t('Informe um valor fechado válido.'));
+        }
+
+        if (!acceptanceEvidence) {
+          throw new Error(t('Informe a evidência do aceite.'));
+        }
+
+        await completeRegistrationRequestTask({
+          client: new CoreApiClient(),
+          opportunityId,
+          proposalId: stageTransitionPanel.proposalId,
+          taskId: stageTransitionPanel.task.id,
+          closedAmountBRL,
+          acceptanceEvidence,
+        });
+
+        setRecord((currentRecord) =>
+          currentRecord
+            ? {
+                ...currentRecord,
+                eventNextAction: null,
+                eventNextActionAt: null,
+                eventClosedAmount: {
+                  amountMicros: Math.round(closedAmountBRL * 1_000_000),
+                  currencyCode: 'BRL',
+                },
+                eventAcceptanceEvidence: acceptanceEvidence,
+                proposals: currentRecord.proposals.map((proposal) =>
+                  proposal.id === stageTransitionPanel.proposalId
+                    ? { ...proposal, status: PROPOSAL_STATUS.ACCEPTED }
+                    : proposal,
+                ),
+                tasks: currentRecord.tasks.map((task) =>
+                  task.id === stageTransitionPanel.task.id
+                    ? { ...task, status: 'DONE' }
+                    : task,
+                ),
+              }
+            : currentRecord,
+        );
+      }
+
+      setStageTransitionPanel(null);
+    } catch (updateError) {
+      await enqueueSnackbar({
+        message:
+          updateError instanceof Error
+            ? updateError.message
+            : t('Não foi possível concluir a próxima ação. Tente novamente.'),
+        variant: 'error',
+      });
+    } finally {
+      setIsUpdatingNextAction(false);
+    }
+  };
+
   const saveReschedule = async () => {
     if (
       !rescheduleValue ||
@@ -1076,7 +1351,9 @@ const StatusNow = () => {
                 {formatDateTime(nextActionAt)}
               </span>
             </div>
-            {rescheduleValue === null && formalizationPanel === null ? (
+            {rescheduleValue === null &&
+            formalizationPanel === null &&
+            stageTransitionPanel === null ? (
               <div style={styles.actionControls}>
                 <button
                   type="button"
@@ -1153,6 +1430,151 @@ const StatusNow = () => {
                     <Trans>Cancelar</Trans>
                   </button>
                 </div>
+              </div>
+            ) : stageTransitionPanel ? (
+              <div style={styles.rescheduleControls}>
+                {stageTransitionPanel.proposalId ? (
+                  <>
+                    <label style={styles.fieldLabel}>
+                      Status da proposta
+                      <select
+                        style={styles.inlineSelect}
+                        value={stageTransitionPanel.proposalStatus}
+                        onChange={(event) =>
+                          setStageTransitionPanel((currentPanel) =>
+                            currentPanel
+                              ? {
+                                  ...currentPanel,
+                                  proposalStatus: event.target.value,
+                                }
+                              : currentPanel,
+                          )
+                        }
+                        disabled={isUpdatingNextAction}
+                      >
+                        <option value="">Selecione um status</option>
+                        <option
+                          value={
+                            stageTransitionPanel.kind === 'PROPOSAL'
+                              ? PROPOSAL_STATUS.SENT
+                              : PROPOSAL_STATUS.ACCEPTED
+                          }
+                        >
+                          {stageTransitionPanel.kind === 'PROPOSAL'
+                            ? 'Enviada'
+                            : 'Aceita'}
+                        </option>
+                      </select>
+                    </label>
+                    {stageTransitionPanel.kind === 'PROPOSAL' ? (
+                      <label style={styles.fieldLabel}>
+                        Enviada em
+                        <input
+                          type="datetime-local"
+                          style={styles.inlineSelect}
+                          value={toDateTimeLocalValue(
+                            stageTransitionPanel.sentAt,
+                          )}
+                          onChange={(event) => {
+                            const sentAt = new Date(event.target.value);
+
+                            setStageTransitionPanel((currentPanel) =>
+                              currentPanel
+                                ? {
+                                    ...currentPanel,
+                                    sentAt: Number.isNaN(sentAt.getTime())
+                                      ? ''
+                                      : sentAt.toISOString(),
+                                  }
+                                : currentPanel,
+                            );
+                          }}
+                          disabled={isUpdatingNextAction}
+                        />
+                      </label>
+                    ) : (
+                      <>
+                        <label style={styles.fieldLabel}>
+                          Valor fechado (R$)
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            style={styles.inlineSelect}
+                            value={stageTransitionPanel.closedAmountBRL}
+                            onChange={(event) =>
+                              setStageTransitionPanel((currentPanel) =>
+                                currentPanel
+                                  ? {
+                                      ...currentPanel,
+                                      closedAmountBRL: event.target.value,
+                                    }
+                                  : currentPanel,
+                              )
+                            }
+                            disabled={isUpdatingNextAction}
+                          />
+                        </label>
+                        <label style={styles.fieldLabel}>
+                          Evidência do aceite
+                          <textarea
+                            style={styles.inlineSelect}
+                            value={stageTransitionPanel.acceptanceEvidence}
+                            onChange={(event) =>
+                              setStageTransitionPanel((currentPanel) =>
+                                currentPanel
+                                  ? {
+                                      ...currentPanel,
+                                      acceptanceEvidence: event.target.value,
+                                    }
+                                  : currentPanel,
+                              )
+                            }
+                            disabled={isUpdatingNextAction}
+                          />
+                        </label>
+                      </>
+                    )}
+                    <div style={styles.actionControls}>
+                      <button
+                        type="button"
+                        style={styles.actionButton}
+                        onClick={() => void saveStageTransitionTask()}
+                        disabled={isUpdatingNextAction}
+                      >
+                        {isUpdatingNextAction ? (
+                          <Trans>Salvando…</Trans>
+                        ) : (
+                          <Trans>Salvar</Trans>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        style={styles.actionButton}
+                        onClick={() => setStageTransitionPanel(null)}
+                        disabled={isUpdatingNextAction}
+                      >
+                        <Trans>Cancelar</Trans>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span style={styles.empty}>
+                      Crie uma proposta antes de concluir esta tarefa.
+                    </span>
+                    <div style={styles.actionControls}>
+                      <button
+                        type="button"
+                        style={styles.actionButton}
+                        onClick={() => setStageTransitionPanel(null)}
+                        disabled={isUpdatingNextAction}
+                      >
+                        <Trans>Cancelar</Trans>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div style={styles.rescheduleControls}>
