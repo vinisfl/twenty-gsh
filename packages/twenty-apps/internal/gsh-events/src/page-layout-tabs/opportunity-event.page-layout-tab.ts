@@ -7,7 +7,7 @@ import { OPPORTUNITY_EVENT_TAB_UNIVERSAL_IDENTIFIER, OPPORTUNITY_EVENT_WIDGET_UN
 export default definePageLayoutTab({
   universalIdentifier: OPPORTUNITY_EVENT_TAB_UNIVERSAL_IDENTIFIER,
   pageLayoutUniversalIdentifier: OPPORTUNITY_RECORD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIER,
-  title: 'Evento GSH',
+  title: 'Execução do evento',
   position: 15,
   icon: 'IconCalendarEvent',
   layoutMode: PageLayoutTabLayoutMode.CANVAS,

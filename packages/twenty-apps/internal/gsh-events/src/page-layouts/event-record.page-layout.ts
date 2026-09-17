@@ -3,13 +3,13 @@ import { EVENT_OBJECT_UNIVERSAL_IDENTIFIER } from 'src/constants/universal-ident
 
 export default definePageLayout({
   universalIdentifier: '75421477-d4ab-4dcd-a7a7-796632c8bb79',
-  name: 'Evento — registro',
+  name: 'Execução do evento — registro',
   type: 'RECORD_PAGE',
   objectUniversalIdentifier: EVENT_OBJECT_UNIVERSAL_IDENTIFIER,
   tabs: [
     {
       universalIdentifier: '856f2373-3ffb-4dc8-b520-6fff26f702a9',
-      title: 'Evento',
+      title: 'Execução do evento',
       position: 0,
       icon: 'IconCalendarEvent',
       layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,

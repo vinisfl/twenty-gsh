@@ -30,8 +30,8 @@ export default defineObject({
   universalIdentifier: EVENT_OBJECT_UNIVERSAL_IDENTIFIER,
   nameSingular: 'corporateEvent',
   namePlural: 'corporateEvents',
-  labelSingular: 'Evento',
-  labelPlural: 'Eventos',
+  labelSingular: 'Execução do evento',
+  labelPlural: 'Execuções de evento',
   description: 'Dados operacionais do evento vendido pela GSH.',
   icon: 'IconCalendarEvent',
   labelIdentifierFieldMetadataUniversalIdentifier:
