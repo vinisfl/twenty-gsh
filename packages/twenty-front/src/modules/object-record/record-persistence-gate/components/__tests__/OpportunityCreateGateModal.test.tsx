@@ -123,31 +123,49 @@ jest.mock(
   }),
 );
 
+// Mirrors Select.tsx's own selectedOption fallback (matching option, else
+// emptyOption, else options[0]) so tests can catch a regression of the bug
+// fixed in #70: a required Select rendering its first option as if chosen
+// while the field's own value is still empty.
 jest.mock('@/ui/input/components/Select', () => ({
   Select: ({
     dropdownId,
     value,
     options,
+    emptyOption,
     onChange,
   }: {
     dropdownId: string;
     value: string;
     options: { value: string; label: string }[];
+    emptyOption?: { value: string; label: string };
     onChange: (value: string) => void;
-  }) => (
-    <select
-      data-testid={dropdownId}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="" />
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
+  }) => {
+    const selectedOption =
+      options.find((option) => option.value === value) ??
+      emptyOption ??
+      options[0];
+
+    return (
+      <div>
+        <span data-testid={`${dropdownId}-selected-label`}>
+          {selectedOption?.label}
+        </span>
+        <select
+          data-testid={dropdownId}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          <option value="" />
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  },
 }));
 
 jest.mock(
@@ -333,6 +351,32 @@ describe('OpportunityCreateGateModal', () => {
     });
 
     expect(mockCreateOpportunity).not.toHaveBeenCalled();
+  });
+
+  it('shows a neutral placeholder, not the first option, for the required selects before the user picks anything', () => {
+    render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+    const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+    act(() => {
+      handler?.({ recordInput: { eventProcessStage: 'PROPOSAL_NEGOTIATION' } });
+    });
+
+    const modalityLabel = screen.getByTestId(
+      'opportunity-create-gate-modal-modality-selected-label',
+    );
+    const sourceLabel = screen.getByTestId(
+      'opportunity-create-gate-modal-source-selected-label',
+    );
+    const eventTypeLabel = screen.getByTestId(
+      'opportunity-create-gate-modal-event-type-selected-label',
+    );
+
+    expect(modalityLabel).not.toHaveTextContent('Interno / na casa');
+    expect(sourceLabel).not.toHaveTextContent('E-mail');
+    expect(eventTypeLabel).not.toHaveTextContent('Coffee break');
+    expect(modalityLabel).toHaveTextContent('Selecionar...');
+    expect(sourceLabel).toHaveTextContent('Selecionar...');
+    expect(eventTypeLabel).toHaveTextContent('Selecionar...');
   });
 
   describe('cumulative fields when created directly in an advanced column', () => {

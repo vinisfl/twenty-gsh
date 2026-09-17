@@ -159,6 +159,7 @@ export const OpportunityCreateGateModal = () => {
 
 const OpportunityCreateGateModalContent = () => {
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Selecionar...`, value: '' };
   const setOpportunityCreateGateHandler = useSetAtom(
     opportunityCreateGateHandlerState,
   );
@@ -621,6 +622,7 @@ const OpportunityCreateGateModalContent = () => {
             label="Modalidade"
             value={modality}
             options={GSH_EVENT_MODALITY_OPTIONS}
+            emptyOption={emptySelectOption}
             onChange={setModality}
             isDropdownInModal
             fullWidth
@@ -661,6 +663,7 @@ const OpportunityCreateGateModalContent = () => {
             label="Origem"
             value={source}
             options={GSH_EVENT_SOURCE_OPTIONS}
+            emptyOption={emptySelectOption}
             onChange={setSource}
             isDropdownInModal
             fullWidth
@@ -676,6 +679,7 @@ const OpportunityCreateGateModalContent = () => {
                 label="Tipo de evento"
                 value={eventType}
                 options={GSH_EVENT_TYPE_OPTIONS}
+                emptyOption={emptySelectOption}
                 onChange={setEventType}
                 isDropdownInModal
                 fullWidth
