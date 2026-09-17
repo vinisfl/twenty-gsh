@@ -41,6 +41,13 @@ export const EVENT_MODALITY = {
   EXTERNAL: 'EXTERNAL',
 } as const;
 
+export const EVENT_PROPERTY_TYPE = {
+  CORPORATE: 'CORPORATE',
+  GAME: 'GAME',
+  SHOW: 'SHOW',
+  OTHER: 'OTHER',
+} as const;
+
 export const PROPOSAL_STATUS = {
   DRAFT: 'DRAFT',
   SENT: 'SENT',
