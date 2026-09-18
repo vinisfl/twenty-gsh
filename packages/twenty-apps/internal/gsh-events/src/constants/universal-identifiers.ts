@@ -247,3 +247,9 @@ export const OPPORTUNITY_CALENDAR_TAB_UNIVERSAL_IDENTIFIER =
   'd8ff3e7f-83e9-41b8-a628-8fe788eb297f';
 export const OPPORTUNITY_CALENDAR_WIDGET_UNIVERSAL_IDENTIFIER =
   '05bb7f6f-9214-4d2b-bf19-e369cc87c352';
+
+// Standard field (not app-authored), so this id isn't chosen by this app —
+// it's the fixed universalIdentifier Twenty core assigns to Attachment.file,
+// read from core.fieldMetadata in the running workspace.
+export const ATTACHMENT_FILE_FIELD_UNIVERSAL_IDENTIFIER =
+  '20202020-15db-460e-8166-c7b5d87ad4be';

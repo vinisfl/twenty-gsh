@@ -7,6 +7,7 @@ import {
 } from 'react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import { CoreApiClient } from 'twenty-client-sdk/core';
+import { MetadataApiClient } from 'twenty-client-sdk/metadata';
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -58,6 +59,7 @@ import {
 } from 'src/front-components/services/complete-stage-transition-task.service';
 import { getTaskAttachmentsCount } from 'src/front-components/services/get-task-attachments-count.service';
 import { syncOpportunityNextAction } from 'src/front-components/services/sync-opportunity-next-action.service';
+import { uploadTaskAttachment } from 'src/front-components/services/upload-task-attachment.service';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
 
@@ -376,6 +378,11 @@ type StageTransitionPanel = {
   acceptanceEvidence: string;
 };
 
+type AttachmentPanel = {
+  task: LinkedTask;
+  file: File | null;
+};
+
 const serviceOrderStatusOptions: StatusOption[] = [
   { value: SERVICE_ORDER_STATUS.PREPARING, label: 'Em preparação' },
   { value: SERVICE_ORDER_STATUS.ISSUED, label: 'Emitida' },
@@ -612,6 +619,8 @@ const StatusNow = () => {
     useState<FormalizationPanel | null>(null);
   const [stageTransitionPanel, setStageTransitionPanel] =
     useState<StageTransitionPanel | null>(null);
+  const [attachmentPanel, setAttachmentPanel] =
+    useState<AttachmentPanel | null>(null);
 
   const load = useCallback(async () => {
     if (!opportunityId) {
@@ -1034,7 +1043,8 @@ const StatusNow = () => {
         );
 
         if (attachmentsCount === 0) {
-          throw new Error(t('Anexe um arquivo à tarefa antes de concluir.'));
+          setAttachmentPanel({ task, file: null });
+          return;
         }
       }
 
@@ -1294,6 +1304,64 @@ const StatusNow = () => {
     }
   };
 
+  const saveTaskAttachment = async () => {
+    if (!attachmentPanel || isUpdatingNextAction || !opportunityId) {
+      return;
+    }
+
+    if (!attachmentPanel.file) {
+      await enqueueSnackbar({
+        message: t('Selecione um arquivo antes de concluir.'),
+        variant: 'error',
+      });
+      return;
+    }
+
+    setIsUpdatingNextAction(true);
+    try {
+      await uploadTaskAttachment({
+        metadataClient: new MetadataApiClient(),
+        coreClient: new CoreApiClient(),
+        file: attachmentPanel.file,
+        taskId: attachmentPanel.task.id,
+      });
+
+      await updateTask(attachmentPanel.task.id, { status: 'DONE' });
+
+      const updatedTasks = withResolvedTask(
+        record?.tasks ?? [],
+        attachmentPanel.task,
+      ).map((currentTask) =>
+        currentTask.id === attachmentPanel.task.id
+          ? { ...currentTask, status: 'DONE' }
+          : currentTask,
+      );
+      const nextActionSync = await syncNextAction(opportunityId, updatedTasks);
+
+      setRecord((currentRecord) =>
+        currentRecord
+          ? {
+              ...currentRecord,
+              ...nextActionSync,
+              tasks: updatedTasks,
+            }
+          : currentRecord,
+      );
+
+      setAttachmentPanel(null);
+    } catch (updateError) {
+      await enqueueSnackbar({
+        message:
+          updateError instanceof Error
+            ? updateError.message
+            : t('Não foi possível anexar o arquivo. Tente novamente.'),
+        variant: 'error',
+      });
+    } finally {
+      setIsUpdatingNextAction(false);
+    }
+  };
+
   const saveReschedule = async () => {
     if (
       !rescheduleValue ||
@@ -1396,7 +1464,8 @@ const StatusNow = () => {
             </div>
             {rescheduleValue === null &&
             formalizationPanel === null &&
-            stageTransitionPanel === null ? (
+            stageTransitionPanel === null &&
+            attachmentPanel === null ? (
               <div style={styles.actionControls}>
                 <button
                   type="button"
@@ -1618,6 +1687,48 @@ const StatusNow = () => {
                     </div>
                   </>
                 )}
+              </div>
+            ) : attachmentPanel ? (
+              <div style={styles.rescheduleControls}>
+                <label style={styles.fieldLabel}>
+                  <Trans>Anexe um arquivo para concluir esta tarefa</Trans>
+                  <input
+                    type="file"
+                    onChange={(event) =>
+                      setAttachmentPanel((currentPanel) =>
+                        currentPanel
+                          ? {
+                              ...currentPanel,
+                              file: event.target.files?.[0] ?? null,
+                            }
+                          : currentPanel,
+                      )
+                    }
+                    disabled={isUpdatingNextAction}
+                  />
+                </label>
+                <div style={styles.actionControls}>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => void saveTaskAttachment()}
+                    disabled={isUpdatingNextAction || !attachmentPanel.file}
+                  >
+                    {isUpdatingNextAction ? (
+                      <Trans>Salvando…</Trans>
+                    ) : (
+                      <Trans>Concluir</Trans>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => setAttachmentPanel(null)}
+                    disabled={isUpdatingNextAction}
+                  >
+                    <Trans>Cancelar</Trans>
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={styles.rescheduleControls}>
