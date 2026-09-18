@@ -25,6 +25,7 @@ import {
   getNextOpenTask,
   getNextOpenTaskWithTitle,
   hasLinkedTaskWithTitle,
+  withResolvedTask,
   type LinkedTask,
 } from 'src/front-components/utils/get-next-open-task.util';
 import { ensureResizeObserver } from 'src/front-components/utils/ensure-resize-observer.util';
@@ -54,6 +55,7 @@ import {
   completeProposalTask,
   completeRegistrationRequestTask,
 } from 'src/front-components/services/complete-stage-transition-task.service';
+import { syncOpportunityNextAction } from 'src/front-components/services/sync-opportunity-next-action.service';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
 
@@ -875,6 +877,13 @@ const StatusNow = () => {
     );
   };
 
+  const syncNextAction = (currentOpportunityId: string, tasks: LinkedTask[]) =>
+    syncOpportunityNextAction({
+      client: new CoreApiClient(),
+      opportunityId: currentOpportunityId,
+      tasks,
+    });
+
   const updateTask = async (
     id: string,
     data: { dueAt?: string; status?: 'DONE' },
@@ -995,7 +1004,7 @@ const StatusNow = () => {
   };
 
   const completeNextAction = async () => {
-    if (isUpdatingNextAction) {
+    if (isUpdatingNextAction || !opportunityId) {
       return;
     }
 
@@ -1018,17 +1027,20 @@ const StatusNow = () => {
 
       await updateTask(task.id, { status: 'DONE' });
 
+      const updatedTasks = withResolvedTask(record?.tasks ?? [], task).map(
+        (currentTask) =>
+          currentTask.id === task.id
+            ? { ...currentTask, status: 'DONE' }
+            : currentTask,
+      );
+      const nextActionSync = await syncNextAction(opportunityId, updatedTasks);
+
       setRecord((currentRecord) =>
         currentRecord
           ? {
               ...currentRecord,
-              eventNextAction: null,
-              eventNextActionAt: null,
-              tasks: currentRecord.tasks.map((currentTask) =>
-                currentTask.id === task.id
-                  ? { ...currentTask, status: 'DONE' }
-                  : currentTask,
-              ),
+              ...nextActionSync,
+              tasks: updatedTasks,
             }
           : currentRecord,
       );
@@ -1046,7 +1058,7 @@ const StatusNow = () => {
   };
 
   const saveFormalizationStatus = async () => {
-    if (!formalizationPanel || isUpdatingNextAction) {
+    if (!formalizationPanel || isUpdatingNextAction || !opportunityId) {
       return;
     }
 
@@ -1087,6 +1099,19 @@ const StatusNow = () => {
         await updateTask(contractTask.id, { dueAt: contractDueAt });
       }
 
+      const updatedTasks = (record?.tasks ?? []).map((task) => {
+        if (task.id === formalizationPanel.task.id) {
+          return { ...task, status: 'DONE' };
+        }
+
+        if (contractTask && task.id === contractTask.id && contractDueAt) {
+          return { ...task, dueAt: contractDueAt };
+        }
+
+        return task;
+      });
+      const nextActionSync = await syncNextAction(opportunityId, updatedTasks);
+
       setRecord((currentRecord) => {
         if (!currentRecord) {
           return currentRecord;
@@ -1095,19 +1120,8 @@ const StatusNow = () => {
         const value = formalizationPanel.value;
         const updatedRecord = {
           ...currentRecord,
-          eventNextAction: null,
-          eventNextActionAt: null,
-          tasks: currentRecord.tasks.map((task) => {
-            if (task.id === formalizationPanel.task.id) {
-              return { ...task, status: 'DONE' };
-            }
-
-            if (contractTask && task.id === contractTask.id && contractDueAt) {
-              return { ...task, dueAt: contractDueAt };
-            }
-
-            return task;
-          }),
+          ...nextActionSync,
+          tasks: updatedTasks,
         };
 
         return definition.applyValue(updatedRecord, value);
@@ -1166,12 +1180,24 @@ const StatusNow = () => {
           assigneeId: record?.ownerId ?? null,
         });
 
+        const updatedTasks = [
+          ...(record?.tasks ?? []).map((task) =>
+            task.id === stageTransitionPanel.task.id
+              ? { ...task, status: 'DONE' }
+              : task,
+          ),
+          followUpTask,
+        ];
+        const nextActionSync = await syncNextAction(
+          opportunityId,
+          updatedTasks,
+        );
+
         setRecord((currentRecord) =>
           currentRecord
             ? {
                 ...currentRecord,
-                eventNextAction: null,
-                eventNextActionAt: null,
+                ...nextActionSync,
                 proposals: currentRecord.proposals.map((proposal) =>
                   proposal.id === stageTransitionPanel.proposalId
                     ? {
@@ -1181,14 +1207,7 @@ const StatusNow = () => {
                       }
                     : proposal,
                 ),
-                tasks: [
-                  ...currentRecord.tasks.map((task) =>
-                    task.id === stageTransitionPanel.task.id
-                      ? { ...task, status: 'DONE' }
-                      : task,
-                  ),
-                  followUpTask,
-                ],
+                tasks: updatedTasks,
               }
             : currentRecord,
         );
@@ -1217,12 +1236,21 @@ const StatusNow = () => {
           acceptanceEvidence,
         });
 
+        const updatedTasks = (record?.tasks ?? []).map((task) =>
+          task.id === stageTransitionPanel.task.id
+            ? { ...task, status: 'DONE' }
+            : task,
+        );
+        const nextActionSync = await syncNextAction(
+          opportunityId,
+          updatedTasks,
+        );
+
         setRecord((currentRecord) =>
           currentRecord
             ? {
                 ...currentRecord,
-                eventNextAction: null,
-                eventNextActionAt: null,
+                ...nextActionSync,
                 eventClosedAmount: {
                   amountMicros: Math.round(closedAmountBRL * 1_000_000),
                   currencyCode: 'BRL',
@@ -1233,11 +1261,7 @@ const StatusNow = () => {
                     ? { ...proposal, status: PROPOSAL_STATUS.ACCEPTED }
                     : proposal,
                 ),
-                tasks: currentRecord.tasks.map((task) =>
-                  task.id === stageTransitionPanel.task.id
-                    ? { ...task, status: 'DONE' }
-                    : task,
-                ),
+                tasks: updatedTasks,
               }
             : currentRecord,
         );
@@ -1261,7 +1285,8 @@ const StatusNow = () => {
     if (
       !rescheduleValue ||
       Number.isNaN(rescheduleValue.getTime()) ||
-      isUpdatingNextAction
+      isUpdatingNextAction ||
+      !opportunityId
     ) {
       return;
     }
@@ -1273,15 +1298,20 @@ const StatusNow = () => {
       const task = await getOrCreateNextTask();
       await updateTask(task.id, { dueAt });
 
+      const updatedTasks = withResolvedTask(record?.tasks ?? [], task).map(
+        (currentTask) =>
+          currentTask.id === task.id
+            ? { ...currentTask, dueAt }
+            : currentTask,
+      );
+      const nextActionSync = await syncNextAction(opportunityId, updatedTasks);
+
       setRecord((currentRecord) =>
         currentRecord
           ? {
               ...currentRecord,
-              tasks: currentRecord.tasks.map((currentTask) =>
-                currentTask.id === task.id
-                  ? { ...currentTask, dueAt }
-                  : currentTask,
-              ),
+              ...nextActionSync,
+              tasks: updatedTasks,
             }
           : currentRecord,
       );

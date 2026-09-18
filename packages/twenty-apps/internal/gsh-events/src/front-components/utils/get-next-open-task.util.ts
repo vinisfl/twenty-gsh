@@ -63,3 +63,15 @@ export const getNextOpenTaskWithTitle = (
         normalizeTaskTitle(task.title) === normalizeTaskTitle(title),
     ),
   );
+
+// A task resolved from the legacy text-only next-action field may have just
+// been created and not be in `tasks` yet (that only lands once the caller's
+// state update commits) — without this, syncing against `tasks` as-is would
+// silently drop it.
+export const withResolvedTask = (
+  tasks: LinkedTask[],
+  task: LinkedTask,
+): LinkedTask[] =>
+  tasks.some((existingTask) => existingTask.id === task.id)
+    ? tasks
+    : [...tasks, task];

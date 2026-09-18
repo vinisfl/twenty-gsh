@@ -518,12 +518,13 @@ const OpportunityCreateGateModalContent = () => {
       }
 
       try {
+        const initialTaskDueAt = getNextBusinessDayIso({
+          fromPlainDate: Temporal.Now.plainDateISO(userTimezone),
+          timeZone: userTimezone,
+        });
         const task = await createTask({
           title: GSH_EVENT_INITIAL_CONTACT_TASK_TITLE,
-          dueAt: getNextBusinessDayIso({
-            fromPlainDate: Temporal.Now.plainDateISO(userTimezone),
-            timeZone: userTimezone,
-          }),
+          dueAt: initialTaskDueAt,
           status: 'TODO',
           assigneeId: ownerId,
         });
@@ -531,6 +532,18 @@ const OpportunityCreateGateModalContent = () => {
         await createTaskTarget({
           taskId: task.id,
           targetOpportunityId: opportunity.id,
+        });
+
+        // The Kanban card's "Próxima ação" fields are plain mirrors of the
+        // earliest open linked task, which the Status agora widget derives
+        // at render time — nothing else sets them for a freshly created task.
+        await updateOneRecord({
+          objectNameSingular: CoreObjectNameSingular.Opportunity,
+          idToUpdate: opportunity.id,
+          updateOneRecordInput: {
+            eventNextAction: GSH_EVENT_INITIAL_CONTACT_TASK_TITLE,
+            eventNextActionAt: initialTaskDueAt,
+          },
         });
       } catch {
         enqueueErrorSnackBar({

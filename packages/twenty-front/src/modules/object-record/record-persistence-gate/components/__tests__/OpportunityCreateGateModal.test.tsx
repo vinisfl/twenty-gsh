@@ -316,6 +316,19 @@ describe('OpportunityCreateGateModal', () => {
       taskId: 'task-1',
       targetOpportunityId: 'opportunity-1',
     });
+
+    const createdTaskDueAt = mockCreateTask.mock.calls[0][0].dueAt;
+
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectNameSingular: CoreObjectNameSingular.Opportunity,
+        idToUpdate: 'opportunity-1',
+        updateOneRecordInput: {
+          eventNextAction: 'Fazer contato inicial e capturar briefing',
+          eventNextActionAt: createdTaskDueAt,
+        },
+      }),
+    );
   });
 
   it('includes the picked contact as the point of contact when one is selected', async () => {

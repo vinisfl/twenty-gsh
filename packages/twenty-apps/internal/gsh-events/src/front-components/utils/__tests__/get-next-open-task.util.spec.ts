@@ -3,6 +3,7 @@ import {
   getNextOpenTask,
   getNextOpenTaskWithTitle,
   hasLinkedTaskWithTitle,
+  withResolvedTask,
 } from 'src/front-components/utils/get-next-open-task.util';
 
 describe('getNextOpenTask', () => {
@@ -132,5 +133,41 @@ describe('getNextOpenTask', () => {
     });
     expect(getNextOpenTaskWithTitle(tasks, 'Arrange tasting')).toBeUndefined();
     expect(hasLinkedTaskWithTitle(tasks, 'CALL CLIENT')).toBe(true);
+  });
+});
+
+describe('withResolvedTask', () => {
+  it('appends the task when it is not already in the list', () => {
+    const existing = {
+      id: 'existing',
+      title: 'Existing task',
+      dueAt: null,
+      status: 'TODO',
+      position: 1,
+    };
+    const resolved = {
+      id: 'new',
+      title: 'Fazer contato inicial e capturar briefing',
+      dueAt: '2026-09-18T09:00:00.000Z',
+      status: 'TODO',
+      position: null,
+    };
+
+    expect(withResolvedTask([existing], resolved)).toEqual([
+      existing,
+      resolved,
+    ]);
+  });
+
+  it('leaves the list untouched when the task is already present', () => {
+    const existing = {
+      id: 'existing',
+      title: 'Existing task',
+      dueAt: null,
+      status: 'TODO',
+      position: 1,
+    };
+
+    expect(withResolvedTask([existing], existing)).toEqual([existing]);
   });
 });
