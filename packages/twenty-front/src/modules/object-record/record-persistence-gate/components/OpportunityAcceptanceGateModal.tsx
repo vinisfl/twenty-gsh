@@ -89,6 +89,7 @@ export const OpportunityAcceptanceGateModal = () => {
 
 const OpportunityAcceptanceGateModalContent = () => {
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Selecionar...`, value: '' };
   const pendingRequest = useAtomValue(
     opportunityStageAdvancePendingRequestState,
   );
@@ -410,6 +411,7 @@ const OpportunityAcceptanceGateModalContent = () => {
               label={t`Status da proposta`}
               value={proposalStatus}
               options={proposalStatusOptions}
+              emptyOption={emptySelectOption}
               onChange={setProposalStatus}
               isDropdownInModal
               fullWidth

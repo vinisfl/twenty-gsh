@@ -105,6 +105,7 @@ export const OpportunityClosedGateModal = () => {
 
 const OpportunityClosedGateModalContent = () => {
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Selecionar...`, value: '' };
   const pendingRequest = useAtomValue(
     opportunityStageAdvancePendingRequestState,
   );
@@ -441,6 +442,7 @@ const OpportunityClosedGateModalContent = () => {
               label={t`Contrato`}
               value={contractStatus}
               options={contractStatusOptions}
+              emptyOption={emptySelectOption}
               onChange={setContractStatus}
               isDropdownInModal
               fullWidth
@@ -457,6 +459,7 @@ const OpportunityClosedGateModalContent = () => {
               label={t`Status da execução`}
               value={executionStatus}
               options={executionStatusOptions}
+              emptyOption={emptySelectOption}
               onChange={setExecutionStatus}
               isDropdownInModal
               fullWidth
@@ -473,6 +476,7 @@ const OpportunityClosedGateModalContent = () => {
               label={t`Montagem`}
               value={assemblyStatus}
               options={assemblyStatusOptions}
+              emptyOption={emptySelectOption}
               onChange={setAssemblyStatus}
               isDropdownInModal
               fullWidth
@@ -489,6 +493,7 @@ const OpportunityClosedGateModalContent = () => {
               label={t`Deslocamento`}
               value={travelStatus}
               options={travelStatusOptions}
+              emptyOption={emptySelectOption}
               onChange={setTravelStatus}
               isDropdownInModal
               fullWidth
@@ -505,6 +510,7 @@ const OpportunityClosedGateModalContent = () => {
               label={t`Abastecimento`}
               value={supplyStatus}
               options={supplyStatusOptions}
+              emptyOption={emptySelectOption}
               onChange={setSupplyStatus}
               isDropdownInModal
               fullWidth
@@ -521,6 +527,7 @@ const OpportunityClosedGateModalContent = () => {
               label={t`Equipe`}
               value={teamStatus}
               options={teamStatusOptions}
+              emptyOption={emptySelectOption}
               onChange={setTeamStatus}
               isDropdownInModal
               fullWidth

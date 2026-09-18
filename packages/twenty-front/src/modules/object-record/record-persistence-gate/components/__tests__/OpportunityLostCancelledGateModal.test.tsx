@@ -78,36 +78,54 @@ jest.mock('twenty-ui/input', () => ({
   ),
 }));
 
+// Mirrors Select.tsx's own selectedOption fallback (matching option, else
+// emptyOption, else options[0]) so tests can catch a regression of the bug
+// fixed in #70: a required Select rendering its first option as if chosen
+// while the field's own value is still empty.
 jest.mock('@/ui/input/components/Select', () => ({
   Select: ({
     dropdownId,
     label,
     value,
     options,
+    emptyOption,
     onChange,
   }: {
     dropdownId: string;
     label: string;
     value: string;
     options: { value: string; label: string }[];
+    emptyOption?: { value: string; label: string };
     onChange: (value: string) => void;
-  }) => (
-    <label>
-      {label}
-      <select
-        data-testid={dropdownId}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="" />
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  ),
+  }) => {
+    const selectedOption =
+      options.find((option) => option.value === value) ??
+      emptyOption ??
+      options[0];
+
+    return (
+      <>
+        <span data-testid={`${dropdownId}-selected-label`}>
+          {selectedOption?.label}
+        </span>
+        <label>
+          {label}
+          <select
+            data-testid={dropdownId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+          >
+            <option value="" />
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </>
+    );
+  },
 }));
 
 const Wrapper = getJestMetadataAndApolloMocksWrapper({ apolloMocks: [] });
@@ -204,6 +222,18 @@ describe('OpportunityLostCancelledGateModal', () => {
     openGate({ sourceStageValue: 'ENTRY', destinationStageValue: 'LOST' });
 
     expect(screen.getByText('Confirmar')).toBeDisabled();
+  });
+
+  it('shows a neutral placeholder, not the first option, before a reason is selected', () => {
+    render(<OpportunityLostCancelledGateModal />, { wrapper: Wrapper });
+    openGate({ sourceStageValue: 'ENTRY', destinationStageValue: 'LOST' });
+
+    const lossReasonLabel = screen.getByTestId(
+      'opportunity-lost-cancelled-gate-modal-loss-reason-selected-label',
+    );
+
+    expect(lossReasonLabel).not.toHaveTextContent('Preço');
+    expect(lossReasonLabel).toHaveTextContent('Selecionar...');
   });
 
   it('advances to Lost with the selected reason from the Entrada stage', async () => {

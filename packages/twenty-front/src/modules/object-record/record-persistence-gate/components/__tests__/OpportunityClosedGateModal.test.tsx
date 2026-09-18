@@ -32,6 +32,7 @@ const translatedMessages: Record<string, string> = {
   yE2evI:
     'Nenhum evento vinculado a esta oportunidade. Vincule um evento antes de encerrar.',
   HObCAi: 'Criar e vincular evento',
+  U0A1k5: 'Selecionar...',
 };
 
 jest.mock('@lingui/react/macro', () => ({
@@ -119,36 +120,54 @@ jest.mock('twenty-ui/input', () => ({
   ),
 }));
 
+// Mirrors Select.tsx's own selectedOption fallback (matching option, else
+// emptyOption, else options[0]) so tests can catch a regression of the bug
+// fixed in #70: a required Select rendering its first option as if chosen
+// while the field's own value is still empty.
 jest.mock('@/ui/input/components/Select', () => ({
   Select: ({
     dropdownId,
     label,
     value,
     options,
+    emptyOption,
     onChange,
   }: {
     dropdownId: string;
     label: string;
     value: string;
     options: { value: string; label: string }[];
+    emptyOption?: { value: string; label: string };
     onChange: (value: string) => void;
-  }) => (
-    <label>
-      {label}
-      <select
-        data-testid={dropdownId}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="" />
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  ),
+  }) => {
+    const selectedOption =
+      options.find((option) => option.value === value) ??
+      emptyOption ??
+      options[0];
+
+    return (
+      <>
+        <span data-testid={`${dropdownId}-selected-label`}>
+          {selectedOption?.label}
+        </span>
+        <label>
+          {label}
+          <select
+            data-testid={dropdownId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+          >
+            <option value="" />
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </>
+    );
+  },
 }));
 
 const Wrapper = getJestMetadataAndApolloMocksWrapper({ apolloMocks: [] });
@@ -227,6 +246,28 @@ describe('OpportunityClosedGateModal', () => {
     });
 
     expect(mockUpdateOneRecord).not.toHaveBeenCalled();
+  });
+
+  it('shows a neutral placeholder, not the first option, for every status select before it is set', () => {
+    opportunityRecords = [
+      { id: 'opportunity-1', name: 'Confraternização de fim de ano' },
+    ];
+    corporateEventRecords = [{ id: 'event-1', opportunityId: 'opportunity-1' }];
+    render(<OpportunityClosedGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    const statusLabels = [
+      'opportunity-closed-gate-modal-contract-status-selected-label',
+      'opportunity-closed-gate-modal-execution-status-selected-label',
+      'opportunity-closed-gate-modal-assembly-status-selected-label',
+      'opportunity-closed-gate-modal-travel-status-selected-label',
+      'opportunity-closed-gate-modal-supply-status-selected-label',
+      'opportunity-closed-gate-modal-team-status-selected-label',
+    ].map((testId) => screen.getByTestId(testId));
+
+    statusLabels.forEach((statusLabel) => {
+      expect(statusLabel).toHaveTextContent('Selecionar...');
+    });
   });
 
   it('keeps the advance button disabled when the checklist is incomplete', () => {

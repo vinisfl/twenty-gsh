@@ -92,6 +92,7 @@ export const OpportunityQualificationGateModal = () => {
 
 const OpportunityQualificationGateModalContent = () => {
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Selecionar...`, value: '' };
   const pendingRequest = useAtomValue(
     opportunityStageAdvancePendingRequestState,
   );
@@ -400,6 +401,7 @@ const OpportunityQualificationGateModalContent = () => {
               label={t`Tipo de evento`}
               value={eventType}
               options={eventTypeOptions}
+              emptyOption={emptySelectOption}
               onChange={setEventType}
               isDropdownInModal
               fullWidth

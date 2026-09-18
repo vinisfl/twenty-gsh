@@ -25,6 +25,7 @@ const translatedMessages: Record<string, string> = {
   ytcDq7: 'Cancelar',
   'hY+loZ': 'Avançar',
   vyUD5d: 'Montar e enviar proposta',
+  U0A1k5: 'Selecionar...',
 };
 
 jest.mock('@lingui/react/macro', () => ({
@@ -147,36 +148,54 @@ jest.mock('twenty-ui/input', () => ({
   ),
 }));
 
+// Mirrors Select.tsx's own selectedOption fallback (matching option, else
+// emptyOption, else options[0]) so tests can catch a regression of the bug
+// fixed in #70: a required Select rendering its first option as if chosen
+// while the field's own value is still empty.
 jest.mock('@/ui/input/components/Select', () => ({
   Select: ({
     dropdownId,
     label,
     value,
     options,
+    emptyOption,
     onChange,
   }: {
     dropdownId: string;
     label: string;
     value: string;
     options: { value: string; label: string }[];
+    emptyOption?: { value: string; label: string };
     onChange: (value: string) => void;
-  }) => (
-    <label>
-      {label}
-      <select
-        data-testid={dropdownId}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="" />
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  ),
+  }) => {
+    const selectedOption =
+      options.find((option) => option.value === value) ??
+      emptyOption ??
+      options[0];
+
+    return (
+      <>
+        <span data-testid={`${dropdownId}-selected-label`}>
+          {selectedOption?.label}
+        </span>
+        <label>
+          {label}
+          <select
+            data-testid={dropdownId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+          >
+            <option value="" />
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </>
+    );
+  },
 }));
 
 jest.mock('@/ui/input/components/SettingsTextInput', () => ({
@@ -261,6 +280,18 @@ describe('OpportunityQualificationGateModal', () => {
       'opportunity-qualification-gate-modal',
     );
     expect(mockUpdateOneRecord).not.toHaveBeenCalled();
+  });
+
+  it('shows a neutral placeholder, not the first option, before an event type is selected', () => {
+    render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    const eventTypeLabel = screen.getByTestId(
+      'opportunity-qualification-gate-modal-event-type-selected-label',
+    );
+
+    expect(eventTypeLabel).not.toHaveTextContent('Coffee break');
+    expect(eventTypeLabel).toHaveTextContent('Selecionar...');
   });
 
   it('does not persist the advancement when the modal is closed', async () => {

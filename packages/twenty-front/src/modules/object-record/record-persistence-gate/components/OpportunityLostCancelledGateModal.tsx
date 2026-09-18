@@ -71,6 +71,7 @@ export const OpportunityLostCancelledGateModal = () => {
 
 const OpportunityLostCancelledGateModalContent = () => {
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Selecionar...`, value: '' };
   const pendingRequest = useAtomValue(
     opportunityStageAdvancePendingRequestState,
   );
@@ -251,6 +252,7 @@ const OpportunityLostCancelledGateModalContent = () => {
             label={t`Motivo da perda/cancelamento`}
             value={lossReason}
             options={lossReasonOptions}
+            emptyOption={emptySelectOption}
             onChange={setLossReason}
             isDropdownInModal
             fullWidth
