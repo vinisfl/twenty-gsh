@@ -44,6 +44,7 @@ import {
 } from 'src/constants/domain-options';
 import {
   GSH_CONTRACT_TASK_TITLE,
+  GSH_EVENT_INITIAL_CONTACT_TASK_TITLE,
   GSH_EVENT_SERVICE_ORDER_TASK_TITLE,
   GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE,
   GSH_INVOICE_FOLLOWUP_TASK_TITLE,
@@ -55,6 +56,7 @@ import {
   completeProposalTask,
   completeRegistrationRequestTask,
 } from 'src/front-components/services/complete-stage-transition-task.service';
+import { getTaskAttachmentsCount } from 'src/front-components/services/get-task-attachments-count.service';
 import { syncOpportunityNextAction } from 'src/front-components/services/sync-opportunity-next-action.service';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
 import { EVENT_PROCESS_STAGE_OPTIONS } from 'src/fields/opportunity-process-stage.field';
@@ -1023,6 +1025,17 @@ const StatusNow = () => {
       if (stageTransitionTaskPanel) {
         setStageTransitionPanel(stageTransitionTaskPanel);
         return;
+      }
+
+      if (task.title?.trim() === GSH_EVENT_INITIAL_CONTACT_TASK_TITLE) {
+        const attachmentsCount = await getTaskAttachmentsCount(
+          new CoreApiClient(),
+          task.id,
+        );
+
+        if (attachmentsCount === 0) {
+          throw new Error(t('Anexe um arquivo à tarefa antes de concluir.'));
+        }
       }
 
       await updateTask(task.id, { status: 'DONE' });

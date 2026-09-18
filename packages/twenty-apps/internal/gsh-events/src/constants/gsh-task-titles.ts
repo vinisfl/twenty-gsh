@@ -7,8 +7,7 @@
 // publicado sob esse nome (`yarn add twenty-shared@workspace:*` falha com
 // "Workspace not found" a partir deste pacote — decisão registrada na
 // issue #58).
-export const GSH_EVENT_INITIAL_CONTACT_TASK_TITLE =
-  'Fazer contato inicial e capturar briefing';
+export const GSH_EVENT_INITIAL_CONTACT_TASK_TITLE = 'Enviar contato inicial';
 
 export const GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE =
   'Solicitar ficha cadastral ao cliente';

@@ -20,7 +20,7 @@ Todos os tipos de evento no funil de Oportunidades (interno e externo — mesmo 
 - Modal bloqueante: o registro só é criado no confirm.
 - Campos mínimos (independente da coluna clicada): Nome do evento, Empresa/Contato (obrigatório; permite criar a empresa inline se não existir), Modalidade, Data prevista do evento, Valor estimado, Origem.
 - Se criado direto numa coluna mais avançada do Kanban, o modal pede **cumulativamente** os campos obrigatórios de todas as etapas até ali (ver gates abaixo).
-- Tarefa automática: **"Fazer contato inicial e capturar briefing"**, vencendo no próximo dia útil, atribuída ao dono do deal. Cria só a tarefa da etapa em que o deal nasceu — não gera tarefas retroativas das etapas puladas quando criado avançado.
+- Tarefa automática: **"Enviar contato inicial"**, vencendo no próximo dia útil, atribuída ao dono do deal. Cria só a tarefa da etapa em que o deal nasceu — não gera tarefas retroativas das etapas puladas quando criado avançado. "Concluir" exige pelo menos um anexo na tarefa (aba de anexos nativa do objeto Task); sem anexo, o clique é bloqueado com mensagem de erro (issue #73).
 
 ## Gates de transição de etapa
 

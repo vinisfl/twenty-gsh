@@ -3,5 +3,4 @@
 //
 // mirror of packages/twenty-apps/internal/gsh-events/src/constants/gsh-task-titles.ts
 // — manter em sincronia (ver decisão sobre twenty-shared nesse arquivo).
-export const GSH_EVENT_INITIAL_CONTACT_TASK_TITLE =
-  'Fazer contato inicial e capturar briefing';
+export const GSH_EVENT_INITIAL_CONTACT_TASK_TITLE = 'Enviar contato inicial';

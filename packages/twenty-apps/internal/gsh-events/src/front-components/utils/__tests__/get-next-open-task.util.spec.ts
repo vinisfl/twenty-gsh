@@ -147,7 +147,7 @@ describe('withResolvedTask', () => {
     };
     const resolved = {
       id: 'new',
-      title: 'Fazer contato inicial e capturar briefing',
+      title: 'Enviar contato inicial',
       dueAt: '2026-09-18T09:00:00.000Z',
       status: 'TODO',
       position: null,
