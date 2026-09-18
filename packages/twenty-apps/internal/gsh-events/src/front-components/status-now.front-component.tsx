@@ -51,7 +51,18 @@ import {
   GSH_INVOICE_FOLLOWUP_TASK_TITLE,
   GSH_PROPOSAL_TASK_TITLE,
   GSH_PURCHASE_FORM_TASK_TITLE,
+  GSH_QUALIFICATION_AUDIENCE_TASK_TITLE,
+  GSH_QUALIFICATION_ESTIMATED_AMOUNT_TASK_TITLE,
+  GSH_QUALIFICATION_EVENT_DATE_TASK_TITLE,
+  GSH_QUALIFICATION_EVENT_TYPE_TASK_TITLE,
+  GSH_QUALIFICATION_LOCATION_CITY_TASK_TITLE,
 } from 'src/constants/gsh-task-titles';
+import { CurrencyInput } from 'src/front-components/fields/CurrencyInput';
+import { completeInitialContactTask } from 'src/front-components/services/complete-initial-contact-task.service';
+import {
+  completeQualificationTask,
+  type QualificationTaskCompletion,
+} from 'src/front-components/services/complete-qualification-task.service';
 import { GSH_CONTRACT_TASK_DUE_DAYS } from 'src/constants/gsh-contract-task-due-days';
 import {
   completeProposalTask,
@@ -332,6 +343,7 @@ const SituationChip = ({ value }: { value: string | null }) => {
 };
 
 type OpportunityStatusRecord = {
+  name: string | null;
   ownerId: string | null;
   eventProcessStage: string | null;
   eventCurrentSituation: string | null;
@@ -339,11 +351,20 @@ type OpportunityStatusRecord = {
   eventNextAction: string | null;
   eventNextActionAt: string | null;
   eventClosedAmount: { amountMicros: number; currencyCode: string } | null;
+  eventAudience: number | null;
+  eventLocation: string | null;
+  eventAt: string | null;
+  amount: { amountMicros: number; currencyCode: string } | null;
   eventAcceptanceEvidence: string | null;
   purchaseFormStatus: string | null;
   invoiceStatus: string | null;
   contractStatus: string | null;
   serviceOrder: { id: string; status: string | null } | null;
+  corporateEvent: {
+    id: string;
+    eventType: string | null;
+    city: string | null;
+  } | null;
   proposals: Array<{
     id: string;
     version: number | null;
@@ -382,6 +403,34 @@ type AttachmentPanel = {
   task: LinkedTask;
   file: File | null;
 };
+
+type QualificationTaskKind =
+  | 'EVENT_TYPE'
+  | 'AUDIENCE'
+  | 'LOCATION_CITY'
+  | 'EVENT_DATE'
+  | 'ESTIMATED_AMOUNT';
+
+type QualificationPanel = {
+  task: LinkedTask;
+  kind: QualificationTaskKind;
+  eventType: string;
+  audience: string;
+  location: string;
+  city: string;
+  eventAt: string;
+  amount: number | undefined;
+};
+
+const qualificationEventTypeOptions: StatusOption[] = [
+  { value: 'COFFEE_BREAK', label: 'Coffee break' },
+  { value: 'WELCOME_COFFEE', label: 'Welcome coffee' },
+  { value: 'HAPPY_HOUR', label: 'Happy hour' },
+  { value: 'COCKTAIL', label: 'Coquetel' },
+  { value: 'FAIR', label: 'Feira' },
+  { value: 'MEAL', label: 'Refeição' },
+  { value: 'OTHER', label: 'Outro' },
+];
 
 const serviceOrderStatusOptions: StatusOption[] = [
   { value: SERVICE_ORDER_STATUS.PREPARING, label: 'Em preparação' },
@@ -571,6 +620,74 @@ const getStageTransitionPanel = (
   return null;
 };
 
+const getQualificationTaskKind = (
+  title: string | null,
+): QualificationTaskKind | null => {
+  switch (title?.trim()) {
+    case GSH_QUALIFICATION_EVENT_TYPE_TASK_TITLE:
+      return 'EVENT_TYPE';
+    case GSH_QUALIFICATION_AUDIENCE_TASK_TITLE:
+      return 'AUDIENCE';
+    case GSH_QUALIFICATION_LOCATION_CITY_TASK_TITLE:
+      return 'LOCATION_CITY';
+    case GSH_QUALIFICATION_EVENT_DATE_TASK_TITLE:
+      return 'EVENT_DATE';
+    case GSH_QUALIFICATION_ESTIMATED_AMOUNT_TASK_TITLE:
+      return 'ESTIMATED_AMOUNT';
+    default:
+      return null;
+  }
+};
+
+const getQualificationPanel = (
+  task: LinkedTask,
+  record: OpportunityStatusRecord | null,
+): QualificationPanel | null => {
+  const kind = getQualificationTaskKind(task.title);
+
+  if (!kind) {
+    return null;
+  }
+
+  return {
+    task,
+    kind,
+    eventType: record?.corporateEvent?.eventType ?? '',
+    audience:
+      record?.eventAudience === null || record?.eventAudience === undefined
+        ? ''
+        : String(record.eventAudience),
+    location: record?.eventLocation ?? '',
+    city: record?.corporateEvent?.city ?? '',
+    eventAt: record?.eventAt ?? '',
+    amount:
+      record?.amount === null || record?.amount === undefined
+        ? undefined
+        : record.amount.amountMicros / 1_000_000,
+  };
+};
+
+const applyQualificationTaskCompletion = ({
+  record,
+  completion,
+}: {
+  record: OpportunityStatusRecord;
+  completion: QualificationTaskCompletion;
+}): OpportunityStatusRecord => ({
+  ...record,
+  eventAudience: completion.eventAudience ?? record.eventAudience,
+  eventLocation: completion.eventLocation ?? record.eventLocation,
+  eventAt: completion.eventAt ?? record.eventAt,
+  amount: completion.amount ?? record.amount,
+  corporateEvent: completion.corporateEvent
+    ? {
+        id: completion.corporateEvent.id,
+        eventType: completion.eventType ?? record.corporateEvent?.eventType ?? null,
+        city: completion.corporateEvent.city ?? record.corporateEvent?.city ?? null,
+      }
+    : record.corporateEvent,
+});
+
 const toDateTimeLocalValue = (value: string): string => {
   const date = new Date(value);
 
@@ -619,6 +736,8 @@ const StatusNow = () => {
     useState<FormalizationPanel | null>(null);
   const [stageTransitionPanel, setStageTransitionPanel] =
     useState<StageTransitionPanel | null>(null);
+  const [qualificationPanel, setQualificationPanel] =
+    useState<QualificationPanel | null>(null);
   const [attachmentPanel, setAttachmentPanel] =
     useState<AttachmentPanel | null>(null);
 
@@ -634,6 +753,7 @@ const StatusNow = () => {
       const result = (await new CoreApiClient().query({
         opportunity: {
           __args: { filter: { id: { eq: opportunityId } } },
+          name: true,
           ownerId: true,
           eventProcessStage: true,
           eventCurrentSituation: true,
@@ -641,6 +761,10 @@ const StatusNow = () => {
           eventNextAction: true,
           eventNextActionAt: true,
           eventClosedAmount: { amountMicros: true, currencyCode: true },
+          eventAudience: true,
+          eventLocation: true,
+          eventAt: true,
+          amount: { amountMicros: true, currencyCode: true },
           eventAcceptanceEvidence: true,
           purchaseFormStatus: true,
           invoiceStatus: true,
@@ -653,6 +777,15 @@ const StatusNow = () => {
           eventProposals: {
             edges: {
               node: { id: true, version: true, status: true, sentAt: true },
+            },
+          },
+          corporateEvents: {
+            __args: {
+              orderBy: [{ createdAt: 'DescNullsLast' }],
+              limit: 1,
+            },
+            edges: {
+              node: { id: true, eventType: true, city: true },
             },
           },
         },
@@ -672,6 +805,7 @@ const StatusNow = () => {
         },
       } as never)) as unknown as {
         opportunity?: {
+          name?: string | null;
           ownerId?: string | null;
           eventProcessStage?: string | null;
           eventCurrentSituation?: string | null;
@@ -679,6 +813,13 @@ const StatusNow = () => {
           eventNextAction?: string | null;
           eventNextActionAt?: string | null;
           eventClosedAmount?: {
+            amountMicros?: number | null;
+            currencyCode?: string | null;
+          } | null;
+          eventAudience?: number | null;
+          eventLocation?: string | null;
+          eventAt?: string | null;
+          amount?: {
             amountMicros?: number | null;
             currencyCode?: string | null;
           } | null;
@@ -701,6 +842,15 @@ const StatusNow = () => {
               };
             }>;
           } | null;
+          corporateEvents?: {
+            edges?: Array<{
+              node: {
+                id?: string | null;
+                eventType?: string | null;
+                city?: string | null;
+              };
+            }>;
+          } | null;
         } | null;
         taskTargets?: {
           edges?: Array<{
@@ -719,6 +869,9 @@ const StatusNow = () => {
 
       const found = result?.opportunity;
       const serviceOrder = found?.eventServiceOrders?.edges?.find(
+        ({ node }) => node.id,
+      )?.node;
+      const corporateEvent = found?.corporateEvents?.edges?.find(
         ({ node }) => node.id,
       )?.node;
       const proposals = (found?.eventProposals?.edges ?? [])
@@ -749,6 +902,7 @@ const StatusNow = () => {
         }
       }
       setRecord({
+        name: found?.name ?? null,
         ownerId: found?.ownerId ?? null,
         eventProcessStage: found?.eventProcessStage ?? null,
         eventCurrentSituation: found?.eventCurrentSituation ?? null,
@@ -763,12 +917,30 @@ const StatusNow = () => {
                 currencyCode: found.eventClosedAmount.currencyCode,
               }
             : null,
+        eventAudience: found?.eventAudience ?? null,
+        eventLocation: found?.eventLocation ?? null,
+        eventAt: found?.eventAt ?? null,
+        amount:
+          typeof found?.amount?.amountMicros === 'number' &&
+          found.amount.currencyCode
+            ? {
+                amountMicros: found.amount.amountMicros,
+                currencyCode: found.amount.currencyCode,
+              }
+            : null,
         eventAcceptanceEvidence: found?.eventAcceptanceEvidence ?? null,
         purchaseFormStatus: found?.purchaseFormStatus ?? null,
         invoiceStatus: found?.invoiceStatus ?? null,
         contractStatus: found?.contractStatus ?? null,
         serviceOrder: serviceOrder?.id
           ? { id: serviceOrder.id, status: serviceOrder.status ?? null }
+          : null,
+        corporateEvent: corporateEvent?.id
+          ? {
+              id: corporateEvent.id,
+              eventType: corporateEvent.eventType ?? null,
+              city: corporateEvent.city ?? null,
+            }
           : null,
         proposals,
         tasks,
@@ -911,6 +1083,92 @@ const StatusNow = () => {
     }
   };
 
+  const completeInitialContact = async (task: LinkedTask) => {
+    if (!opportunityId) {
+      throw new Error(t('Oportunidade não encontrada.'));
+    }
+
+    const qualificationTasks = await completeInitialContactTask({
+      client: new CoreApiClient(),
+      opportunityId,
+      taskId: task.id,
+      assigneeId: record?.ownerId ?? null,
+      existingTaskTitles: record?.tasks.map((currentTask) => currentTask.title),
+    });
+    const updatedTasks = [
+      ...withResolvedTask(record?.tasks ?? [], task).map((currentTask) =>
+        currentTask.id === task.id
+          ? { ...currentTask, status: 'DONE' as const }
+          : currentTask,
+      ),
+      ...qualificationTasks,
+    ];
+    const nextActionSync = await syncNextAction(opportunityId, updatedTasks);
+
+    setRecord((currentRecord) =>
+      currentRecord
+        ? {
+            ...currentRecord,
+            ...nextActionSync,
+            tasks: updatedTasks,
+          }
+        : currentRecord,
+    );
+  };
+
+  const saveQualificationTask = async () => {
+    if (!qualificationPanel || isUpdatingNextAction || !opportunityId) {
+      return;
+    }
+
+    setIsUpdatingNextAction(true);
+    try {
+      const completion = await completeQualificationTask({
+        client: new CoreApiClient(),
+        taskId: qualificationPanel.task.id,
+        taskTitle: qualificationPanel.task.title,
+        opportunityId,
+        opportunityName: record?.name ?? null,
+        corporateEventId: record?.corporateEvent?.id ?? null,
+        values: {
+          eventType: qualificationPanel.eventType,
+          audience: Number(qualificationPanel.audience),
+          location: qualificationPanel.location,
+          city: qualificationPanel.city,
+          eventAt: qualificationPanel.eventAt,
+          amount: qualificationPanel.amount,
+        },
+      });
+      const updatedTasks = (record?.tasks ?? []).map((task) =>
+        task.id === qualificationPanel.task.id
+          ? { ...task, status: 'DONE' }
+          : task,
+      );
+      const nextActionSync = await syncNextAction(opportunityId, updatedTasks);
+
+      setRecord((currentRecord) =>
+        currentRecord
+          ? applyQualificationTaskCompletion({
+              record: { ...currentRecord, ...nextActionSync, tasks: updatedTasks },
+              completion,
+            })
+          : currentRecord,
+      );
+      setQualificationPanel(null);
+    } catch (updateError) {
+      await load();
+      await enqueueSnackbar({
+        message:
+          updateError instanceof Error
+            ? updateError.message
+            : t('Não foi possível concluir a tarefa de qualificação.'),
+        variant: 'error',
+      });
+    } finally {
+      setIsUpdatingNextAction(false);
+    }
+  };
+
   const persistFormalizationStatus = async (
     panel: FormalizationPanel,
     value: string,
@@ -1029,6 +1287,13 @@ const StatusNow = () => {
         return;
       }
 
+      const qualificationTaskPanel = getQualificationPanel(task, record);
+
+      if (qualificationTaskPanel) {
+        setQualificationPanel(qualificationTaskPanel);
+        return;
+      }
+
       const stageTransitionTaskPanel = getStageTransitionPanel(task, record);
 
       if (stageTransitionTaskPanel) {
@@ -1046,6 +1311,9 @@ const StatusNow = () => {
           setAttachmentPanel({ task, file: null });
           return;
         }
+
+        await completeInitialContact(task);
+        return;
       }
 
       await updateTask(task.id, { status: 'DONE' });
@@ -1068,6 +1336,7 @@ const StatusNow = () => {
           : currentRecord,
       );
     } catch (updateError) {
+      await load();
       await enqueueSnackbar({
         message:
           updateError instanceof Error
@@ -1326,30 +1595,10 @@ const StatusNow = () => {
         taskId: attachmentPanel.task.id,
       });
 
-      await updateTask(attachmentPanel.task.id, { status: 'DONE' });
-
-      const updatedTasks = withResolvedTask(
-        record?.tasks ?? [],
-        attachmentPanel.task,
-      ).map((currentTask) =>
-        currentTask.id === attachmentPanel.task.id
-          ? { ...currentTask, status: 'DONE' }
-          : currentTask,
-      );
-      const nextActionSync = await syncNextAction(opportunityId, updatedTasks);
-
-      setRecord((currentRecord) =>
-        currentRecord
-          ? {
-              ...currentRecord,
-              ...nextActionSync,
-              tasks: updatedTasks,
-            }
-          : currentRecord,
-      );
-
+      await completeInitialContact(attachmentPanel.task);
       setAttachmentPanel(null);
     } catch (updateError) {
+      await load();
       await enqueueSnackbar({
         message:
           updateError instanceof Error
@@ -1464,6 +1713,7 @@ const StatusNow = () => {
             </div>
             {rescheduleValue === null &&
             formalizationPanel === null &&
+            qualificationPanel === null &&
             stageTransitionPanel === null &&
             attachmentPanel === null ? (
               <div style={styles.actionControls}>
@@ -1537,6 +1787,156 @@ const StatusNow = () => {
                     type="button"
                     style={styles.actionButton}
                     onClick={() => setFormalizationPanel(null)}
+                    disabled={isUpdatingNextAction}
+                  >
+                    <Trans>Cancelar</Trans>
+                  </button>
+                </div>
+              </div>
+            ) : qualificationPanel ? (
+              <div style={styles.rescheduleControls}>
+                {qualificationPanel.kind === 'EVENT_TYPE' ? (
+                  <label style={styles.fieldLabel}>
+                    <Trans>Tipo de evento</Trans>
+                    <select
+                      style={styles.inlineSelect}
+                      value={qualificationPanel.eventType}
+                      onChange={(event) =>
+                        setQualificationPanel((currentPanel) =>
+                          currentPanel
+                            ? {
+                                ...currentPanel,
+                                eventType: event.target.value,
+                              }
+                            : currentPanel,
+                        )
+                      }
+                      disabled={isUpdatingNextAction}
+                    >
+                      <option value=""><Trans>Selecionar...</Trans></option>
+                      {qualificationEventTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {qualificationPanel.kind === 'AUDIENCE' ? (
+                  <label style={styles.fieldLabel}>
+                    <Trans>Público estimado</Trans>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      style={styles.inlineSelect}
+                      value={qualificationPanel.audience}
+                      onChange={(event) =>
+                        setQualificationPanel((currentPanel) =>
+                          currentPanel
+                            ? { ...currentPanel, audience: event.target.value }
+                            : currentPanel,
+                        )
+                      }
+                      disabled={isUpdatingNextAction}
+                    />
+                  </label>
+                ) : null}
+                {qualificationPanel.kind === 'LOCATION_CITY' ? (
+                  <>
+                    <label style={styles.fieldLabel}>
+                      <Trans>Local do evento</Trans>
+                      <input
+                        type="text"
+                        style={styles.inlineSelect}
+                        value={qualificationPanel.location}
+                        onChange={(event) =>
+                          setQualificationPanel((currentPanel) =>
+                            currentPanel
+                              ? {
+                                  ...currentPanel,
+                                  location: event.target.value,
+                                }
+                              : currentPanel,
+                          )
+                        }
+                        disabled={isUpdatingNextAction}
+                      />
+                    </label>
+                    <label style={styles.fieldLabel}>
+                      <Trans>Cidade do evento</Trans>
+                      <input
+                        type="text"
+                        style={styles.inlineSelect}
+                        value={qualificationPanel.city}
+                        onChange={(event) =>
+                          setQualificationPanel((currentPanel) =>
+                            currentPanel
+                              ? { ...currentPanel, city: event.target.value }
+                              : currentPanel,
+                          )
+                        }
+                        disabled={isUpdatingNextAction}
+                      />
+                    </label>
+                  </>
+                ) : null}
+                {qualificationPanel.kind === 'EVENT_DATE' ? (
+                  <label style={styles.fieldLabel}>
+                    <Trans>Data do evento</Trans>
+                    <input
+                      type="datetime-local"
+                      style={styles.inlineSelect}
+                      value={toDateTimeLocalValue(qualificationPanel.eventAt)}
+                      onChange={(event) => {
+                        const eventAt = new Date(event.target.value);
+
+                        setQualificationPanel((currentPanel) =>
+                          currentPanel
+                            ? {
+                                ...currentPanel,
+                                eventAt: Number.isNaN(eventAt.getTime())
+                                  ? ''
+                                  : eventAt.toISOString(),
+                              }
+                            : currentPanel,
+                        );
+                      }}
+                      disabled={isUpdatingNextAction}
+                    />
+                  </label>
+                ) : null}
+                {qualificationPanel.kind === 'ESTIMATED_AMOUNT' ? (
+                  <label style={styles.fieldLabel}>
+                    <Trans>Valor estimado</Trans>
+                    <CurrencyInput
+                      value={qualificationPanel.amount}
+                      onChange={(amount) =>
+                        setQualificationPanel((currentPanel) =>
+                          currentPanel ? { ...currentPanel, amount } : currentPanel,
+                        )
+                      }
+                      disabled={isUpdatingNextAction}
+                    />
+                  </label>
+                ) : null}
+                <div style={styles.actionControls}>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => void saveQualificationTask()}
+                    disabled={isUpdatingNextAction}
+                  >
+                    {isUpdatingNextAction ? (
+                      <Trans>Salvando…</Trans>
+                    ) : (
+                      <Trans>Salvar</Trans>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.actionButton}
+                    onClick={() => setQualificationPanel(null)}
                     disabled={isUpdatingNextAction}
                   >
                     <Trans>Cancelar</Trans>

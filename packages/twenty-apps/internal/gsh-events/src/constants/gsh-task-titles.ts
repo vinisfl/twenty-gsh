@@ -9,6 +9,26 @@
 // issue #58).
 export const GSH_EVENT_INITIAL_CONTACT_TASK_TITLE = 'Enviar contato inicial';
 
+export const GSH_QUALIFICATION_EVENT_TYPE_TASK_TITLE = 'Coletar tipo de evento';
+
+export const GSH_QUALIFICATION_AUDIENCE_TASK_TITLE = 'Coletar público estimado';
+
+export const GSH_QUALIFICATION_LOCATION_CITY_TASK_TITLE =
+  'Coletar local/cidade';
+
+export const GSH_QUALIFICATION_EVENT_DATE_TASK_TITLE = 'Coletar data do evento';
+
+export const GSH_QUALIFICATION_ESTIMATED_AMOUNT_TASK_TITLE =
+  'Coletar valor estimado';
+
+export const GSH_QUALIFICATION_TASK_TITLES = [
+  GSH_QUALIFICATION_EVENT_TYPE_TASK_TITLE,
+  GSH_QUALIFICATION_AUDIENCE_TASK_TITLE,
+  GSH_QUALIFICATION_LOCATION_CITY_TASK_TITLE,
+  GSH_QUALIFICATION_EVENT_DATE_TASK_TITLE,
+  GSH_QUALIFICATION_ESTIMATED_AMOUNT_TASK_TITLE,
+] as const;
+
 export const GSH_EVENT_REGISTRATION_REQUEST_TASK_TITLE =
   'Solicitar ficha cadastral ao cliente';
 
