@@ -24,13 +24,15 @@ export const ACTIVE_EVENTS_VIEW_UNIVERSAL_IDENTIFIER =
 
 const opportunityFields =
   STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.opportunity.fields;
-const activeStages = EVENT_PROCESS_STAGE_OPTIONS.slice(0, 5);
 const groupIds = [
   'c745811c-b50c-4c97-afd2-79e37c24cc91',
   'e6bcc0d9-7c73-46cb-af55-334b09a4c95a',
   '64785b39-bef4-411f-a450-55178d0e465b',
   'f3f6f1ce-f006-48de-aa31-ab6aa2fe3628',
   'b30e4ba0-5607-48de-b7ba-dd437af11e03',
+  '6c7bed9c-50df-4610-a260-881cc13cec3d',
+  '2c1542a5-23a2-4619-9663-3a50ddefc940',
+  '3a39ec79-7f94-4f25-8740-4ff4ac579159',
 ];
 
 export default defineView({
@@ -46,7 +48,7 @@ export default defineView({
   kanbanAggregateOperation: AggregateOperations.COUNT_AND_SUM,
   kanbanAggregateOperationFieldMetadataUniversalIdentifier:
     opportunityFields.amount.universalIdentifier,
-  groups: activeStages.map((option, index) => ({
+  groups: EVENT_PROCESS_STAGE_OPTIONS.map((option, index) => ({
     universalIdentifier: groupIds[index],
     fieldValue: option.value,
     position: index,
@@ -137,6 +139,9 @@ export default defineView({
         EVENT_PROCESS_STAGE.PROPOSAL_NEGOTIATION,
         EVENT_PROCESS_STAGE.ACCEPTANCE_REGISTRATION,
         EVENT_PROCESS_STAGE.PRODUCTION_FORMALIZATION_EVENT,
+        EVENT_PROCESS_STAGE.CLOSED,
+        EVENT_PROCESS_STAGE.LOST,
+        EVENT_PROCESS_STAGE.CANCELLED,
       ],
     },
   ],
