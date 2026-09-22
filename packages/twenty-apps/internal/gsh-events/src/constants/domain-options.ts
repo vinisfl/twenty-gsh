@@ -48,6 +48,15 @@ export const EVENT_PROPERTY_TYPE = {
   OTHER: 'OTHER',
 } as const;
 
+// Distinguishes eventCatalog records imported in bulk from the Databricks
+// gold layer (bilheteria própria da GSH) from ones created ad hoc by the
+// commercial flow — independent from Opportunity.eventModality, which is
+// about venue location (na casa / fora da casa), not record origin.
+export const EVENT_CATALOG_ORIGIN = {
+  INTERNAL: 'INTERNAL',
+  EXTERNAL: 'EXTERNAL',
+} as const;
+
 export const PROPOSAL_STATUS = {
   DRAFT: 'DRAFT',
   SENT: 'SENT',

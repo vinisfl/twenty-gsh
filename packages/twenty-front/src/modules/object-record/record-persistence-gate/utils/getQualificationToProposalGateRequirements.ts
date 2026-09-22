@@ -1,7 +1,5 @@
-import { isDefined } from 'twenty-shared/utils';
-
 import { type GateRequirementCheckResult } from '@/object-record/record-persistence-gate/types/GateRequirementCheckResult';
-import { type MonetaryAmountDraft } from '@/object-record/record-persistence-gate/types/MonetaryAmountDraft';
+import { GSH_EVENT_MODALITY_INTERNAL_VALUE } from '@/object-record/record-persistence-gate/constants/GshEventModalityInternalValue';
 import { buildGateRequirementCheckResult } from '@/object-record/record-persistence-gate/utils/buildGateRequirementCheckResult';
 import { isFilled } from '@/object-record/record-persistence-gate/utils/isFilled';
 
@@ -10,16 +8,13 @@ export type QualificationToProposalGateRequirementKey =
   | 'audience'
   | 'location'
   | 'city'
-  | 'eventAt'
-  | 'amount'
-  | 'budgetCompatible';
+  | 'eventAt';
 
 type QualificationToProposalGateOpportunity = {
   eventAudience: number | null | undefined;
+  eventModality?: string | null | undefined;
   eventLocation: string | null | undefined;
   eventAt: string | null | undefined;
-  amount: MonetaryAmountDraft | null | undefined;
-  eventBudgetCompatible: boolean | null | undefined;
 };
 
 type QualificationToProposalGateCorporateEvent = {
@@ -35,8 +30,6 @@ export const getQualificationToProposalGateRequirements = ({
   corporateEvent: QualificationToProposalGateCorporateEvent | null | undefined;
 }): GateRequirementCheckResult<QualificationToProposalGateRequirementKey> => {
   const audience = opportunity?.eventAudience;
-  const amountMicros = opportunity?.amount?.amountMicros;
-
   return buildGateRequirementCheckResult<QualificationToProposalGateRequirementKey>(
     {
       eventType: isFilled(corporateEvent?.eventType),
@@ -45,10 +38,10 @@ export const getQualificationToProposalGateRequirements = ({
         Number.isInteger(audience) &&
         audience > 0,
       location: isFilled(opportunity?.eventLocation),
-      city: isFilled(corporateEvent?.city),
+      city:
+        opportunity?.eventModality === GSH_EVENT_MODALITY_INTERNAL_VALUE ||
+        isFilled(corporateEvent?.city),
       eventAt: isFilled(opportunity?.eventAt),
-      amount: isDefined(amountMicros) && amountMicros > 0,
-      budgetCompatible: opportunity?.eventBudgetCompatible === true,
     },
   );
 };

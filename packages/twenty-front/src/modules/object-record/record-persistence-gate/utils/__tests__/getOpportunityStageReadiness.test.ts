@@ -31,6 +31,24 @@ describe('getOpportunityStageReadiness', () => {
     });
   });
 
+  it('treats an internal arena as ready without a separately stored city', () => {
+    expect(
+      getOpportunityStageReadiness({
+        opportunity: {
+          eventProcessStage: 'QUALIFICATION',
+          eventModality: 'INTERNAL',
+          eventAudience: 50,
+          eventLocation: 'Morumbis',
+          eventAt: '2026-10-21T18:00:00.000Z',
+        },
+        corporateEvent: { eventType: 'COCKTAIL', city: '' },
+      }),
+    ).toEqual({
+      isReadyToAdvance: true,
+      missingRequirementCount: 0,
+    });
+  });
+
   it('uses the latest proposal when checking readiness for acceptance', () => {
     expect(
       getOpportunityStageReadiness({

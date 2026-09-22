@@ -14,18 +14,26 @@ const mockCreateTask = jest.fn();
 const mockCreateTaskTarget = jest.fn();
 const mockOpenModal = jest.fn();
 const mockCloseModal = jest.fn();
+const mockGetPlaceDetailsData = jest.fn();
+let opportunityModality = 'EXTERNAL';
+let opportunityLocation: string | undefined;
+let opportunityEventAt: string | undefined;
+let opportunityEventEndAt: string | undefined;
+let corporateEventCity: string | undefined;
+let corporateEventStartAt: string | undefined;
+let corporateEventEndAt: string | undefined;
+let placeAutocompleteData: { text: string; placeId: string }[] = [];
 const translatedMessages: Record<string, string> = {
   HN6ic2: 'Tipo de evento',
   tbO7pJ: 'Público estimado',
   d5zxa4: 'Local',
   'W+HvlL': 'Cidade',
   '/gwQhm': 'Data do evento',
-  'd/vJMB': 'Valor estimado (R$)',
-  he9Wyu: 'Orçamento compatível',
   ytcDq7: 'Cancelar',
   'hY+loZ': 'Avançar',
   vyUD5d: 'Montar e enviar proposta',
   U0A1k5: 'Selecionar...',
+  '9OrMf2': 'Cidade: Campinas',
 };
 
 jest.mock('@lingui/react/macro', () => ({
@@ -57,11 +65,28 @@ jest.mock('@/object-record/hooks/useFindManyRecords', () => ({
               id: 'opportunity-1',
               name: 'Confraternização de fim de ano',
               ownerId: 'owner-1',
+              eventModality: opportunityModality,
+              eventLocation: opportunityLocation,
+              eventAt: opportunityEventAt,
+              eventEndAt: opportunityEventEndAt,
             },
           ],
           loading: false,
         }
-      : { records: [], loading: false },
+      : {
+          records:
+            corporateEventCity || corporateEventStartAt || corporateEventEndAt
+              ? [
+                  {
+                    id: 'event-1',
+                    city: corporateEventCity,
+                    startAt: corporateEventStartAt,
+                    endAt: corporateEventEndAt,
+                  },
+                ]
+              : [],
+          loading: false,
+        },
 }));
 
 jest.mock('@/object-record/hooks/useUpdateOneRecord', () => ({
@@ -160,6 +185,7 @@ jest.mock('@/ui/input/components/Select', () => ({
     options,
     emptyOption,
     onChange,
+    disabled,
   }: {
     dropdownId: string;
     label: string;
@@ -167,6 +193,7 @@ jest.mock('@/ui/input/components/Select', () => ({
     options: { value: string; label: string }[];
     emptyOption?: { value: string; label: string };
     onChange: (value: string) => void;
+    disabled?: boolean;
   }) => {
     const selectedOption =
       options.find((option) => option.value === value) ??
@@ -184,6 +211,7 @@ jest.mock('@/ui/input/components/Select', () => ({
             data-testid={dropdownId}
             value={value}
             onChange={(event) => onChange(event.target.value)}
+            disabled={disabled}
           >
             <option value="" />
             {options.map((option) => (
@@ -200,11 +228,13 @@ jest.mock('@/ui/input/components/Select', () => ({
 
 jest.mock('@/ui/input/components/SettingsTextInput', () => ({
   SettingsTextInput: ({
+    instanceId,
     label,
     value,
     onChange,
     type,
   }: {
+    instanceId: string;
     label: string;
     value: string;
     onChange: (value: string) => void;
@@ -213,11 +243,61 @@ jest.mock('@/ui/input/components/SettingsTextInput', () => ({
     <label>
       {label}
       <input
+        data-testid={instanceId}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  ),
+}));
+
+jest.mock('@/geo-map/hooks/usePlaceAutocomplete', () => ({
+  usePlaceAutocomplete: () => ({
+    placeAutocompleteData,
+    tokenForPlaceApi: 'place-token',
+    getAutocompletePlaceData: jest.fn(),
+    closePlaceAutocomplete: jest.fn(),
+    resetPlaceAutocomplete: jest.fn(),
+  }),
+}));
+
+jest.mock('@/geo-map/hooks/useGetPlaceApiData', () => ({
+  useGetPlaceApiData: () => ({
+    getPlaceDetailsData: mockGetPlaceDetailsData,
+  }),
+}));
+
+jest.mock('@/geo-map/components/PlaceAutocompleteSelect', () => ({
+  PlaceAutocompleteSelect: ({
+    list,
+    onChange,
+  }: {
+    list: { text: string; placeId: string }[];
+    onChange: (placeId: string) => void;
+  }) => (
+    <div>
+      {list.map((place) => (
+        <button key={place.placeId} onClick={() => onChange(place.placeId)}>
+          {place.text}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
+jest.mock('@/ui/layout/dropdown/components/Dropdown', () => ({
+  Dropdown: ({
+    clickableComponent,
+    dropdownComponents,
+  }: {
+    clickableComponent: ReactNode;
+    dropdownComponents: ReactNode;
+  }) => (
+    <div>
+      {clickableComponent}
+      {dropdownComponents}
+    </div>
   ),
 }));
 
@@ -245,12 +325,20 @@ const fillRequiredFields = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(screen.getByLabelText('Local'), 'Casa GSH');
   await user.type(screen.getByLabelText('Cidade'), 'São Paulo');
   await user.type(screen.getByLabelText('Data do evento'), '2026-09-10T14:00');
-  await user.type(screen.getByLabelText('Valor estimado (R$)'), '5000');
 };
 
 describe('OpportunityQualificationGateModal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    opportunityModality = 'EXTERNAL';
+    opportunityLocation = undefined;
+    opportunityEventAt = undefined;
+    opportunityEventEndAt = undefined;
+    corporateEventCity = undefined;
+    corporateEventStartAt = undefined;
+    corporateEventEndAt = undefined;
+    placeAutocompleteData = [];
+    mockGetPlaceDetailsData.mockResolvedValue(undefined);
     mockUpdateOneRecord.mockResolvedValue({ id: 'opportunity-1' });
     mockCreateCorporateEvent.mockResolvedValue({ id: 'event-1' });
     mockCreateTask.mockResolvedValue({ id: 'task-1' });
@@ -294,6 +382,166 @@ describe('OpportunityQualificationGateModal', () => {
     expect(eventTypeLabel).toHaveTextContent('Selecionar...');
   });
 
+  it('shows the modality filled earlier without allowing it to be changed', () => {
+    render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    const modalityField = screen.getByTestId(
+      'opportunity-qualification-gate-modal-modality',
+    );
+
+    expect(modalityField).toHaveValue('EXTERNAL');
+    expect(modalityField).toBeDisabled();
+  });
+
+  it('inherits the event start and end dates when a linked event already exists', () => {
+    corporateEventStartAt = '2026-09-10T14:00:00.000Z';
+    corporateEventEndAt = '2026-09-10T18:00:00.000Z';
+    opportunityEventAt = '2026-09-11T14:00:00.000Z';
+    opportunityEventEndAt = '2026-09-11T18:00:00.000Z';
+
+    render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(
+      screen.getByTestId('opportunity-qualification-gate-modal-event-at'),
+    ).toHaveValue('2026-09-10T14:00');
+    expect(
+      screen.getByTestId('opportunity-qualification-gate-modal-event-end-at'),
+    ).toHaveValue('2026-09-10T18:00');
+  });
+
+  it('uses place autocomplete to persist an external address and its city', async () => {
+    placeAutocompleteData = [
+      { placeId: 'place-1', text: 'Av. Paulista, 1000, São Paulo' },
+    ];
+    mockGetPlaceDetailsData.mockResolvedValue({ city: 'São Paulo' });
+    const user = userEvent.setup();
+    render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    await user.type(screen.getByLabelText('Local'), 'Av. Paulista');
+    await user.click(screen.getByText('Av. Paulista, 1000, São Paulo'));
+
+    expect(mockGetPlaceDetailsData).toHaveBeenCalledWith(
+      'place-1',
+      'place-token',
+    );
+    expect(screen.getByLabelText('Local')).toHaveValue(
+      'Av. Paulista, 1000, São Paulo',
+    );
+    expect(screen.getByLabelText('Cidade')).toHaveValue('São Paulo');
+
+    await user.selectOptions(screen.getByLabelText('Tipo de evento'), [
+      'COFFEE_BREAK',
+    ]);
+    await user.type(screen.getByLabelText('Público estimado'), '80');
+    await user.type(
+      screen.getByLabelText('Data do evento'),
+      '2026-09-10T14:00',
+    );
+    await user.click(screen.getByText('Avançar'));
+
+    expect(mockCreateCorporateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ city: 'São Paulo' }),
+    );
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        updateOneRecordInput: expect.objectContaining({
+          eventLocation: 'Av. Paulista, 1000, São Paulo',
+        }),
+      }),
+    );
+  });
+
+  it('requires an arena instead of showing external address fields for internal events', async () => {
+    opportunityModality = 'INTERNAL';
+    const user = userEvent.setup();
+    render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(screen.queryByLabelText('Local')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Cidade')).not.toBeInTheDocument();
+
+    expect(
+      [
+        ...(
+          screen.getByTestId(
+            'opportunity-qualification-gate-modal-arena',
+          ) as HTMLSelectElement
+        ).options,
+      ].map((option) => option.value),
+    ).toEqual(['', 'Nubank', 'Morumbis']);
+
+    await user.selectOptions(
+      screen.getByTestId('opportunity-qualification-gate-modal-arena'),
+      ['Nubank'],
+    );
+    await user.selectOptions(screen.getByLabelText('Tipo de evento'), [
+      'COFFEE_BREAK',
+    ]);
+    await user.type(screen.getByLabelText('Público estimado'), '80');
+    await user.type(
+      screen.getByLabelText('Data do evento'),
+      '2026-09-10T14:00',
+    );
+
+    await user.click(screen.getByText('Avançar'));
+
+    expect(mockCreateCorporateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ city: 'São Paulo' }),
+    );
+    expect(mockUpdateOneRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        updateOneRecordInput: expect.objectContaining({
+          eventLocation: 'Nubank',
+        }),
+      }),
+    );
+  });
+
+  it('keeps a legacy internal location readable in the arena selector', () => {
+    opportunityModality = 'INTERNAL';
+    opportunityLocation = 'Espaço legado';
+    corporateEventCity = 'Campinas';
+    render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
+    openGate();
+
+    expect(
+      screen.getByTestId(
+        'opportunity-qualification-gate-modal-arena-selected-label',
+      ),
+    ).toHaveTextContent('Espaço legado');
+    expect(screen.getByText('Cidade: Campinas')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['EXTERNAL', 'external'],
+    ['INTERNAL', 'internal'],
+  ])(
+    'does not advance an %s opportunity without its required location',
+    async (modality) => {
+      opportunityModality = modality;
+      const user = userEvent.setup();
+      render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
+      openGate();
+
+      await user.selectOptions(screen.getByLabelText('Tipo de evento'), [
+        'COFFEE_BREAK',
+      ]);
+      await user.type(screen.getByLabelText('Público estimado'), '80');
+      if (modality === 'EXTERNAL') {
+        await user.type(screen.getByLabelText('Cidade'), 'São Paulo');
+      }
+      await user.type(
+        screen.getByLabelText('Data do evento'),
+        '2026-09-10T14:00',
+      );
+
+      expect(screen.getByText('Avançar')).toBeDisabled();
+    },
+  );
+
   it('does not persist the advancement when the modal is closed', async () => {
     render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
     openGate();
@@ -309,9 +557,6 @@ describe('OpportunityQualificationGateModal', () => {
     render(<OpportunityQualificationGateModal />, { wrapper: Wrapper });
     openGate();
     await fillRequiredFields(user);
-
-    expect(screen.getByText('Avançar')).toBeDisabled();
-    await user.click(screen.getByLabelText('Orçamento compatível'));
 
     await user.click(screen.getByText('Avançar'));
 
@@ -331,8 +576,6 @@ describe('OpportunityQualificationGateModal', () => {
           eventProcessStage: 'PROPOSAL_NEGOTIATION',
           eventAudience: 80,
           eventLocation: 'Casa GSH',
-          amount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
-          eventBudgetCompatible: true,
         }),
       }),
     );

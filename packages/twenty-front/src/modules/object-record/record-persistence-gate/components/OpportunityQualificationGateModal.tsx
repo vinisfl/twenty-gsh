@@ -5,7 +5,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { styled } from '@linaria/react';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { Button, Checkbox } from 'twenty-ui/input';
+import { Button } from 'twenty-ui/input';
 import { Section, SectionAlignment, SectionFontColor } from 'twenty-ui/layout';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { H1Title, H1TitleFontColor } from 'twenty-ui/typography';
@@ -14,6 +14,12 @@ import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMembe
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
 import { GateRequirementSummary } from '@/object-record/record-persistence-gate/components/GateRequirementSummary';
 import { GateFieldWrapper } from '@/object-record/record-persistence-gate/components/fields/GateFieldWrapper';
+import {
+  GSH_EVENT_ARENA_OPTIONS,
+  getGshEventArenaCity,
+} from '@/object-record/record-persistence-gate/constants/GshEventArenaOptions';
+import { GSH_EVENT_MODALITY_INTERNAL_VALUE } from '@/object-record/record-persistence-gate/constants/GshEventModalityInternalValue';
+import { GSH_EVENT_MODALITY_OPTIONS } from '@/object-record/record-persistence-gate/constants/GshEventModalityOptions';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
@@ -25,10 +31,13 @@ import { type OpportunityStageAdvanceGateHandler } from '@/object-record/record-
 import { getIsQualificationToProposalStageAdvance } from '@/object-record/record-persistence-gate/utils/getIsQualificationToProposalStageAdvance';
 import { getQualificationToProposalGateRequirements } from '@/object-record/record-persistence-gate/utils/getQualificationToProposalGateRequirements';
 import { getGateFieldStatus } from '@/object-record/record-persistence-gate/utils/getGateFieldStatus';
-import { toMonetaryAmountDraft } from '@/object-record/record-persistence-gate/utils/toMonetaryAmountDraft';
+import { PlaceAutocompleteSelect } from '@/geo-map/components/PlaceAutocompleteSelect';
+import { useGetPlaceApiData } from '@/geo-map/hooks/useGetPlaceApiData';
+import { usePlaceAutocomplete } from '@/geo-map/hooks/usePlaceAutocomplete';
 import { Select } from '@/ui/input/components/Select';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
 import { ModalStatefulWrapper } from '@/ui/layout/modal/components/ModalStatefulWrapper';
 import { useModal } from '@/ui/layout/modal/hooks/useModal';
 import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilySelectorValue';
@@ -48,12 +57,6 @@ const StyledFields = styled.div`
   gap: ${themeCssVariables.spacing[4]};
 `;
 
-const StyledCheckboxRow = styled.label`
-  align-items: center;
-  display: flex;
-  gap: ${themeCssVariables.spacing[2]};
-`;
-
 const StyledModalActions = styled.div`
   display: flex;
   gap: ${themeCssVariables.spacing[2]};
@@ -63,6 +66,13 @@ const StyledModalActions = styled.div`
     flex: 1;
   }
 `;
+
+const StyledLegacyCity = styled.div`
+  color: ${themeCssVariables.font.color.secondary};
+`;
+
+const OPPORTUNITY_QUALIFICATION_GATE_LOCATION_AUTOCOMPLETE_DROPDOWN_ID =
+  'opportunity-qualification-gate-location-autocomplete-dropdown';
 
 export const OpportunityQualificationGateModal = () => {
   const opportunityObjectMetadataItem = useAtomFamilySelectorValue(
@@ -101,6 +111,16 @@ const OpportunityQualificationGateModalContent = () => {
   );
   const { openModal, closeModal } = useModal();
   const { enqueueErrorSnackBar } = useSnackBar();
+  const { getPlaceDetailsData } = useGetPlaceApiData();
+  const {
+    placeAutocompleteData,
+    tokenForPlaceApi,
+    getAutocompletePlaceData,
+    closePlaceAutocomplete,
+    resetPlaceAutocomplete,
+  } = usePlaceAutocomplete(
+    OPPORTUNITY_QUALIFICATION_GATE_LOCATION_AUTOCOMPLETE_DROPDOWN_ID,
+  );
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
   const { updateOneRecord } = useUpdateOneRecord();
   const { createOneRecord: createCorporateEvent } = useCreateOneRecord({
@@ -135,17 +155,25 @@ const OpportunityQualificationGateModalContent = () => {
       orderBy: [{ createdAt: 'DescNullsLast' }],
       limit: 1,
       skip: !isOwnPendingRequest,
+      recordGqlFields: {
+        id: true,
+        eventType: true,
+        city: true,
+        startAt: true,
+        endAt: true,
+      },
     });
 
   const opportunity = opportunities[0];
   const corporateEvent = corporateEvents[0];
+  const isInternalModality =
+    opportunity?.eventModality === GSH_EVENT_MODALITY_INTERNAL_VALUE;
   const [eventType, setEventType] = useState('');
   const [audience, setAudience] = useState('');
   const [location, setLocation] = useState('');
   const [city, setCity] = useState('');
   const [eventAt, setEventAt] = useState('');
-  const [amount, setAmount] = useState('');
-  const [isBudgetCompatible, setIsBudgetCompatible] = useState(false);
+  const [eventEndAt, setEventEndAt] = useState<string | null>(null);
   const [initializedRequestId, setInitializedRequestId] = useState<
     string | null
   >(null);
@@ -204,13 +232,11 @@ const OpportunityQualificationGateModalContent = () => {
     );
     setLocation(opportunity?.eventLocation ?? '');
     setCity(corporateEvent?.city ?? '');
-    setEventAt(opportunity?.eventAt ?? '');
-    setAmount(
-      isDefined(opportunity?.amount?.amountMicros)
-        ? String(opportunity.amount.amountMicros / 1_000_000)
-        : '',
-    );
-    setIsBudgetCompatible(opportunity?.eventBudgetCompatible ?? false);
+    // The corporate event is the source of truth once it exists. Keep the
+    // opportunity dates as a fallback for legacy opportunities that do not
+    // yet have a linked event, so the values remain visible as inherited.
+    setEventAt(corporateEvent?.startAt ?? opportunity?.eventAt ?? '');
+    setEventEndAt(corporateEvent?.endAt ?? opportunity?.eventEndAt ?? null);
     setInitializedRequestId(pendingRequest.recordId);
   }, [
     corporateEvent,
@@ -228,8 +254,7 @@ const OpportunityQualificationGateModalContent = () => {
     setLocation('');
     setCity('');
     setEventAt('');
-    setAmount('');
-    setIsBudgetCompatible(false);
+    setEventEndAt(null);
     setInitializedRequestId(null);
   };
 
@@ -240,20 +265,20 @@ const OpportunityQualificationGateModalContent = () => {
   };
 
   const parsedAudience = Number(audience);
-  const amountDraft = toMonetaryAmountDraft(amount);
+  const effectiveCity = isInternalModality
+    ? (getGshEventArenaCity(location) ?? city)
+    : city;
   const gateRequirements = getQualificationToProposalGateRequirements({
     opportunity: {
       eventAudience: parsedAudience,
+      eventModality: opportunity?.eventModality,
       eventLocation: location,
       eventAt,
-      amount: amountDraft,
-      eventBudgetCompatible: isBudgetCompatible,
     },
-    corporateEvent: { eventType, city },
+    corporateEvent: { eventType, city: effectiveCity },
   });
   const isFormValid =
     gateRequirements.isSatisfied &&
-    isBudgetCompatible &&
     isDefined(opportunity) &&
     isDefined(pendingRequest);
   const missingRequirementLabels = gateRequirements.missingRequirementKeys.map(
@@ -264,8 +289,6 @@ const OpportunityQualificationGateModalContent = () => {
         location: t`Local`,
         city: t`Cidade`,
         eventAt: t`Data do evento`,
-        amount: t`Valor estimado`,
-        budgetCompatible: t`Orçamento compatível`,
       })[key],
   );
   const getRequirementStatus = (
@@ -277,13 +300,49 @@ const OpportunityQualificationGateModalContent = () => {
       isInherited,
     });
 
+  const handleExternalLocationChange = (value: string) => {
+    setLocation(value);
+    getAutocompletePlaceData({ address: value });
+  };
+
+  const handleExternalPlaceSelection = async (placeId: string) => {
+    const selectedPlace = placeAutocompleteData.find(
+      (place) => place.placeId === placeId,
+    );
+
+    if (!isDefined(selectedPlace)) {
+      return;
+    }
+
+    setLocation(selectedPlace.text);
+
+    try {
+      const placeDetails = await getPlaceDetailsData(
+        placeId,
+        tokenForPlaceApi ?? '',
+      );
+
+      if (isDefined(placeDetails?.city)) {
+        setCity(placeDetails.city);
+      }
+    } catch {
+      // Keep the selected address when a provider omits or cannot return details.
+    } finally {
+      resetPlaceAutocomplete();
+    }
+  };
+
+  const arenaOptions = GSH_EVENT_ARENA_OPTIONS.some(
+    (option) => option.value === location,
+  )
+    ? GSH_EVENT_ARENA_OPTIONS
+    : [
+        ...GSH_EVENT_ARENA_OPTIONS,
+        ...(location.length > 0 ? [{ value: location, label: location }] : []),
+      ];
+
   const handleConfirm = async () => {
-    if (
-      !isFormValid ||
-      !isDefined(pendingRequest) ||
-      !isDefined(opportunity) ||
-      !isDefined(amountDraft)
-    ) {
+    if (!isFormValid || !isDefined(pendingRequest) || !isDefined(opportunity)) {
       return;
     }
 
@@ -292,9 +351,10 @@ const OpportunityQualificationGateModalContent = () => {
     try {
       const eventInput = {
         eventType,
-        city: city.trim(),
+        city: effectiveCity.trim(),
         estimatedAudience: parsedAudience,
         startAt: eventAt,
+        endAt: eventEndAt,
       };
 
       if (isDefined(corporateEvent)) {
@@ -331,11 +391,7 @@ const OpportunityQualificationGateModalContent = () => {
           eventAudience: parsedAudience,
           eventLocation: location.trim(),
           eventAt,
-          amount: {
-            amountMicros: amountDraft.amountMicros,
-            currencyCode: 'BRL',
-          },
-          eventBudgetCompatible: isBudgetCompatible,
+          eventEndAt,
         },
       });
 
@@ -390,6 +446,17 @@ const OpportunityQualificationGateModalContent = () => {
         </Section>
       ) : (
         <StyledFields>
+          <GateFieldWrapper status="inherited">
+            <Select
+              dropdownId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-modality`}
+              label={t`Modalidade`}
+              value={opportunity?.eventModality ?? ''}
+              options={GSH_EVENT_MODALITY_OPTIONS}
+              emptyOption={emptySelectOption}
+              disabled
+              fullWidth
+            />
+          </GateFieldWrapper>
           <GateFieldWrapper
             status={getRequirementStatus(
               'eventType',
@@ -426,38 +493,85 @@ const OpportunityQualificationGateModalContent = () => {
               fullWidth
             />
           </GateFieldWrapper>
-          <GateFieldWrapper
-            status={getRequirementStatus(
-              'location',
-              location === (opportunity?.eventLocation ?? ''),
-            )}
-          >
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-location`}
-              label={t`Local`}
-              value={location}
-              onChange={setLocation}
-              fullWidth
-            />
-          </GateFieldWrapper>
-          <GateFieldWrapper
-            status={getRequirementStatus(
-              'city',
-              city === (corporateEvent?.city ?? ''),
-            )}
-          >
-            <SettingsTextInput
-              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-city`}
-              label={t`Cidade`}
-              value={city}
-              onChange={setCity}
-              fullWidth
-            />
-          </GateFieldWrapper>
+          {isInternalModality ? (
+            <GateFieldWrapper
+              status={getRequirementStatus(
+                'location',
+                location === (opportunity?.eventLocation ?? ''),
+              )}
+            >
+              <Select
+                dropdownId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-arena`}
+                label={t`Arena`}
+                value={location}
+                options={arenaOptions}
+                emptyOption={emptySelectOption}
+                onChange={setLocation}
+                isDropdownInModal
+                fullWidth
+              />
+              {city.length > 0 && (
+                <StyledLegacyCity>{t`Cidade: ${city}`}</StyledLegacyCity>
+              )}
+            </GateFieldWrapper>
+          ) : (
+            <>
+              <GateFieldWrapper
+                status={getRequirementStatus(
+                  'location',
+                  location === (opportunity?.eventLocation ?? ''),
+                )}
+              >
+                <Dropdown
+                  dropdownId={
+                    OPPORTUNITY_QUALIFICATION_GATE_LOCATION_AUTOCOMPLETE_DROPDOWN_ID
+                  }
+                  dropdownPlacement="bottom-start"
+                  clickableComponentWidth="100%"
+                  disableClickForClickableComponent
+                  onClickOutside={closePlaceAutocomplete}
+                  clickableComponent={
+                    <SettingsTextInput
+                      instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-location`}
+                      label={t`Local`}
+                      value={location}
+                      onChange={handleExternalLocationChange}
+                      autoComplete="off"
+                      fullWidth
+                    />
+                  }
+                  dropdownComponents={
+                    <PlaceAutocompleteSelect
+                      list={placeAutocompleteData}
+                      onChange={handleExternalPlaceSelection}
+                      dropdownId={
+                        OPPORTUNITY_QUALIFICATION_GATE_LOCATION_AUTOCOMPLETE_DROPDOWN_ID
+                      }
+                    />
+                  }
+                />
+              </GateFieldWrapper>
+              <GateFieldWrapper
+                status={getRequirementStatus(
+                  'city',
+                  city === (corporateEvent?.city ?? ''),
+                )}
+              >
+                <SettingsTextInput
+                  instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-city`}
+                  label={t`Cidade`}
+                  value={city}
+                  onChange={setCity}
+                  fullWidth
+                />
+              </GateFieldWrapper>
+            </>
+          )}
           <GateFieldWrapper
             status={getRequirementStatus(
               'eventAt',
-              eventAt === (opportunity?.eventAt ?? ''),
+              eventAt ===
+                (corporateEvent?.startAt ?? opportunity?.eventAt ?? ''),
             )}
           >
             <SettingsTextInput
@@ -472,40 +586,23 @@ const OpportunityQualificationGateModalContent = () => {
             />
           </GateFieldWrapper>
           <GateFieldWrapper
-            status={getRequirementStatus(
-              'amount',
-              amount ===
-                (isDefined(opportunity?.amount?.amountMicros)
-                  ? String(opportunity.amount.amountMicros / 1_000_000)
-                  : ''),
-            )}
+            status={getGateFieldStatus({
+              isSatisfied: isDefined(eventEndAt),
+              isInherited:
+                eventEndAt ===
+                (corporateEvent?.endAt ?? opportunity?.eventEndAt ?? null),
+            })}
           >
             <SettingsTextInput
-              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-amount`}
-              label={t`Valor estimado (R$)`}
-              type="number"
-              min={0}
-              leftAdornment="R$"
-              value={amount}
-              onChange={setAmount}
+              instanceId={`${OPPORTUNITY_QUALIFICATION_GATE_MODAL_ID}-event-end-at`}
+              label={t`Data de fim do evento`}
+              type="datetime-local"
+              value={eventEndAt ? eventEndAt.slice(0, 16) : ''}
+              onChange={(value) =>
+                setEventEndAt(value ? new Date(value).toISOString() : null)
+              }
               fullWidth
             />
-          </GateFieldWrapper>
-          <GateFieldWrapper
-            status={getRequirementStatus(
-              'budgetCompatible',
-              isBudgetCompatible ===
-                (opportunity?.eventBudgetCompatible ?? false),
-            )}
-          >
-            <StyledCheckboxRow>
-              <Checkbox
-                checked={isBudgetCompatible}
-                onCheckedChange={setIsBudgetCompatible}
-                aria-label={t`Orçamento compatível`}
-              />
-              {t`Orçamento compatível`}
-            </StyledCheckboxRow>
           </GateFieldWrapper>
         </StyledFields>
       )}

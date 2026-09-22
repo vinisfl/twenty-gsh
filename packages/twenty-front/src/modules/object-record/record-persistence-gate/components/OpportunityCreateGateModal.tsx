@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { useLingui } from '@lingui/react/macro';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -24,16 +24,19 @@ import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { buildRecordLabelPayload } from '@/object-record/utils/buildRecordLabelPayload';
 import { GSH_EVENT_FUNNEL_CORPORATE_EVENT } from '@/object-record/record-persistence-gate/constants/GshEventFunnelCorporateEvent';
 import { GSH_EVENT_INITIAL_CONTACT_TASK_TITLE } from '@/object-record/record-persistence-gate/constants/GshEventInitialContactTaskTitle';
+import { GSH_EVENT_MODALITY_INTERNAL_VALUE } from '@/object-record/record-persistence-gate/constants/GshEventModalityInternalValue';
 import { GSH_EVENT_MODALITY_OPTIONS } from '@/object-record/record-persistence-gate/constants/GshEventModalityOptions';
 import { GSH_EVENT_SOURCE_OPTIONS } from '@/object-record/record-persistence-gate/constants/GshEventSourceOptions';
 import { GSH_EVENT_TYPE_OPTIONS } from '@/object-record/record-persistence-gate/constants/GshEventTypeOptions';
 import { OPPORTUNITY_CREATE_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityCreateGateModalId';
+import { useEventCatalogVenueGroupOptions } from '@/object-record/record-persistence-gate/hooks/useEventCatalogVenueGroupOptions';
 import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
 import { opportunityCreateGatePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityCreateGatePendingRequestState';
 import { fromDateTimeLocalInputValue } from '@/object-record/record-persistence-gate/utils/fromDateTimeLocalInputValue';
 import { getNextBusinessDayIso } from '@/object-record/record-persistence-gate/utils/getNextBusinessDayIso';
 import { getOpportunityCreateCumulativeGateFlags } from '@/object-record/record-persistence-gate/utils/getOpportunityCreateCumulativeGateFlags';
 import { getGateFieldStatus } from '@/object-record/record-persistence-gate/utils/getGateFieldStatus';
+import { type GateFieldStatus } from '@/object-record/record-persistence-gate/types/GateFieldStatus';
 import { isFilled } from '@/object-record/record-persistence-gate/utils/isFilled';
 import { toDateTimeLocalInputValue } from '@/object-record/record-persistence-gate/utils/toDateTimeLocalInputValue';
 import { FormSingleRecordPicker } from '@/object-record/record-field/ui/form-types/components/FormSingleRecordPicker';
@@ -95,6 +98,15 @@ type CompanyFiscalRecord = ObjectRecord & {
   billingEmail: string | null;
 };
 
+type EventCatalogRecord = ObjectRecord & {
+  name: string;
+};
+
+type BaseFieldRequirement = {
+  isSatisfied: boolean;
+  label: string;
+};
+
 // GSH-specific: pairs with the extension points added to
 // RecordBoardColumnNewRecordButton, CreateNewIndexRecordNoSelectionRecordCommand
 // and useRecordBoardDndKit (see ADR-0001). This component registers the app's
@@ -141,7 +153,6 @@ export const OpportunityCreateGateModal = () => {
       objectNameType: 'singular',
     },
   );
-
   if (
     !isDefined(opportunityObjectMetadataItem) ||
     !isDefined(corporateEventObjectMetadataItem) ||
@@ -154,6 +165,116 @@ export const OpportunityCreateGateModal = () => {
     <PreComputedChipGeneratorsProvider>
       <OpportunityCreateGateModalContent />
     </PreComputedChipGeneratorsProvider>
+  );
+};
+
+type EventCatalogVenueFieldProps = {
+  venue: string;
+  onVenueChange: (venue: string) => void;
+  status: GateFieldStatus;
+  dropdownId: string;
+};
+
+// Split out for the same reason as EventCatalogIdentityField below: the
+// venueGroup options come from an eventCatalog-typed query, which throws if
+// eventCatalog isn't on this workspace's schema yet, so this must only
+// mount once the caller has confirmed the object exists.
+const EventCatalogVenueField = ({
+  venue,
+  onVenueChange,
+  status,
+  dropdownId,
+}: EventCatalogVenueFieldProps) => {
+  const { t } = useLingui();
+  const venueOptions = useEventCatalogVenueGroupOptions();
+
+  return (
+    <GateFieldWrapper status={status}>
+      <Select
+        dropdownId={dropdownId}
+        label="Venue"
+        value={venue}
+        options={venueOptions}
+        emptyOption={{ label: t`Selecionar...`, value: '' }}
+        onChange={onVenueChange}
+        isDropdownInModal
+        fullWidth
+      />
+    </GateFieldWrapper>
+  );
+};
+
+type EventCatalogIdentityFieldProps = {
+  eventCatalogId: string | null;
+  onEventCatalogIdChange: (eventCatalogId: string | null) => void;
+  onRecordChange: (
+    record: EventCatalogRecord | undefined,
+    isLoading: boolean,
+  ) => void;
+  status: GateFieldStatus;
+  testId: string;
+};
+
+// Split out from OpportunityCreateGateModalContent so the eventCatalog-typed
+// hooks below (which throw if eventCatalog isn't on this workspace's schema
+// yet, same as useCreateOneRecord elsewhere in this file) only run once the
+// caller has confirmed the object exists — see isEventCatalogAvailable.
+const EventCatalogIdentityField = ({
+  eventCatalogId,
+  onEventCatalogIdChange,
+  onRecordChange,
+  status,
+  testId,
+}: EventCatalogIdentityFieldProps) => {
+  const { createOneRecord: createEventCatalog } = useCreateOneRecord({
+    objectNameSingular: 'eventCatalog',
+  });
+  const { objectMetadataItem: eventCatalogObjectMetadataItem } =
+    useObjectMetadataItem({
+      objectNameSingular: 'eventCatalog',
+    });
+  const { records: eventCatalogs, loading: isLoadingEventCatalog } =
+    useFindManyRecords<EventCatalogRecord>({
+      objectNameSingular: 'eventCatalog',
+      filter: { id: { eq: eventCatalogId ?? '' } },
+      limit: 1,
+      skip: !isDefined(eventCatalogId),
+    });
+  const eventCatalog = eventCatalogs[0];
+
+  useEffect(() => {
+    onRecordChange(eventCatalog, isLoadingEventCatalog);
+  }, [eventCatalog, isLoadingEventCatalog, onRecordChange]);
+
+  const handleCreateEventCatalog = async (searchInput?: string) => {
+    const newEventCatalogId = v4();
+    const createdEventCatalog = await createEventCatalog(
+      buildRecordLabelPayload({
+        id: newEventCatalogId,
+        searchInput,
+        objectMetadataItem: eventCatalogObjectMetadataItem,
+      }),
+    );
+
+    if (isDefined(createdEventCatalog)) {
+      onEventCatalogIdChange(createdEventCatalog.id);
+    }
+  };
+
+  return (
+    <GateFieldWrapper status={status}>
+      <FormSingleRecordPicker
+        label="Evento"
+        defaultValue={eventCatalogId}
+        onChange={(value) =>
+          onEventCatalogIdChange((value as string | null) ?? null)
+        }
+        onCreate={handleCreateEventCatalog}
+        objectNameSingulars={['eventCatalog']}
+        isDropdownInModal
+        testId={testId}
+      />
+    </GateFieldWrapper>
   );
 };
 
@@ -196,6 +317,20 @@ const OpportunityCreateGateModalContent = () => {
     useObjectMetadataItem({
       objectNameSingular: CoreObjectNameSingular.Person,
     });
+  // Non-throwing: unlike useObjectMetadataItem, this reports absence instead
+  // of throwing, which matters here because eventCatalog (#67/#68) may not
+  // be applied to a given workspace's schema yet — the base Externa flow
+  // must keep working even then, so Modalidade Interna is only offered, and
+  // EventCatalogIdentityField (the only place that calls the
+  // eventCatalog-typed hooks that DO throw) only mounts, once this resolves.
+  const eventCatalogObjectMetadataItem = useAtomFamilySelectorValue(
+    objectMetadataItemFamilySelector,
+    {
+      objectName: 'eventCatalog',
+      objectNameType: 'singular',
+    },
+  );
+  const isEventCatalogAvailable = isDefined(eventCatalogObjectMetadataItem);
   const { createOneRecord: createTask } = useCreateOneRecord({
     objectNameSingular: CoreObjectNameSingular.Task,
   });
@@ -207,9 +342,15 @@ const OpportunityCreateGateModalContent = () => {
   const [name, setName] = useState('');
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [personId, setPersonId] = useState<string | null>(null);
+  const [venue, setVenue] = useState('');
+  const [eventCatalogId, setEventCatalogId] = useState<string | null>(null);
+  const [eventCatalog, setEventCatalog] = useState<
+    EventCatalogRecord | undefined
+  >(undefined);
+  const [isLoadingEventCatalog, setIsLoadingEventCatalog] = useState(false);
   const [modality, setModality] = useState('');
   const [eventAt, setEventAt] = useState<string | null>(null);
-  const [amount, setAmount] = useState('');
+  const [eventEndAt, setEventEndAt] = useState<string | null>(null);
   const [source, setSource] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -233,6 +374,15 @@ const OpportunityCreateGateModalContent = () => {
     requiresAcceptanceFields,
     requiresProductionFields,
   } = getOpportunityCreateCumulativeGateFlags(destinationStageValue);
+
+  const hasModality = modality.length > 0;
+  // The eventCatalog picker only renders when isEventCatalogAvailable is
+  // also true (see the EventCatalogIdentityField branch below) — gate every
+  // other Interno-specific check the same way, so a workspace without the
+  // eventCatalog object falls back to the plain name field instead of a
+  // permanently-unsatisfiable "Evento" requirement.
+  const isInternalModality =
+    modality === GSH_EVENT_MODALITY_INTERNAL_VALUE && isEventCatalogAvailable;
 
   const { records: companies, loading: isLoadingCompany } =
     useFindManyRecords<CompanyFiscalRecord>({
@@ -264,9 +414,13 @@ const OpportunityCreateGateModalContent = () => {
     setName('');
     setCompanyId(null);
     setPersonId(null);
+    setVenue('');
+    setEventCatalogId(null);
+    setEventCatalog(undefined);
+    setIsLoadingEventCatalog(false);
     setModality('');
     setEventAt(null);
-    setAmount('');
+    setEventEndAt(null);
     setSource('');
     setEventType('');
     setAudience('');
@@ -316,15 +470,40 @@ const OpportunityCreateGateModalContent = () => {
     }
   };
 
-  const parsedAmount = Number(amount);
-  const isBaseFormValid =
-    name.trim().length > 0 &&
-    isDefined(companyId) &&
-    modality.length > 0 &&
-    isDefined(eventAt) &&
-    Number.isFinite(parsedAmount) &&
-    parsedAmount > 0 &&
-    source.length > 0;
+  const handleEventCatalogRecordChange = useCallback(
+    (record: EventCatalogRecord | undefined, isLoading: boolean) => {
+      setEventCatalog(record);
+      setIsLoadingEventCatalog(isLoading);
+    },
+    [],
+  );
+
+  const isVenueSatisfied = venue.length > 0;
+  const isEventIdentitySatisfied = isInternalModality
+    ? isDefined(eventCatalogId) &&
+      isDefined(eventCatalog) &&
+      !isLoadingEventCatalog
+    : name.trim().length > 0;
+
+  const baseFieldRequirements: BaseFieldRequirement[] = [
+    ...(isInternalModality
+      ? [{ isSatisfied: isVenueSatisfied, label: t`Venue` }]
+      : []),
+    {
+      isSatisfied: isEventIdentitySatisfied,
+      label: isInternalModality ? t`Evento` : t`Nome do evento`,
+    },
+    { isSatisfied: isDefined(companyId), label: t`Empresa` },
+    { isSatisfied: hasModality, label: t`Modalidade` },
+    { isSatisfied: isDefined(eventAt), label: t`Data de início do evento` },
+    { isSatisfied: source.length > 0, label: t`Origem` },
+  ];
+  const isBaseFormValid = baseFieldRequirements.every(
+    (requirement) => requirement.isSatisfied,
+  );
+  const missingBaseRequirementLabels = baseFieldRequirements
+    .filter((requirement) => !requirement.isSatisfied)
+    .map((requirement) => requirement.label);
 
   const parsedAudience = Number(audience);
   const isQualificationFieldsValid =
@@ -357,14 +536,7 @@ const OpportunityCreateGateModalContent = () => {
     isAcceptanceFieldsValid &&
     isProductionFieldsValid;
   const missingRequirementLabels = [
-    ...(name.trim().length === 0 ? [t`Nome do evento`] : []),
-    ...(!isDefined(companyId) ? [t`Empresa`] : []),
-    ...(modality.length === 0 ? [t`Modalidade`] : []),
-    ...(!isDefined(eventAt) ? [t`Data prevista do evento`] : []),
-    ...(!Number.isFinite(parsedAmount) || parsedAmount <= 0
-      ? [t`Valor estimado`]
-      : []),
-    ...(source.length === 0 ? [t`Origem`] : []),
+    ...missingBaseRequirementLabels,
     ...(requiresQualificationFields && eventType.length === 0
       ? [t`Tipo de evento`]
       : []),
@@ -414,22 +586,23 @@ const OpportunityCreateGateModalContent = () => {
 
     setIsSubmitting(true);
     const ownerId = currentWorkspaceMember?.id ?? null;
+    const opportunityName = isInternalModality
+      ? (eventCatalog?.name ?? '')
+      : name.trim();
 
     try {
       const opportunity = await createOpportunity({
         ...pendingRequest.recordInput,
-        name: name.trim(),
+        name: opportunityName,
         companyId,
         pointOfContactId: personId,
         eventModality: modality,
         eventAt,
-        amount: {
-          amountMicros: Math.round(parsedAmount * 1_000_000),
-          currencyCode: 'BRL',
-        },
+        eventEndAt,
         eventSource: source,
         gshFunnel: GSH_EVENT_FUNNEL_CORPORATE_EVENT,
         ownerId,
+        ...(isInternalModality && { eventCatalogId }),
         ...(requiresQualificationFields && {
           eventAudience: parsedAudience,
           eventLocation: location.trim(),
@@ -453,11 +626,12 @@ const OpportunityCreateGateModalContent = () => {
       if (requiresQualificationFields) {
         try {
           await createCorporateEvent({
-            name: name.trim(),
+            name: opportunityName,
             eventType,
             city: city.trim(),
             estimatedAudience: parsedAudience,
             startAt: eventAt,
+            endAt: eventEndAt,
             opportunityId: opportunity.id,
           });
         } catch {
@@ -471,7 +645,7 @@ const OpportunityCreateGateModalContent = () => {
       if (requiresAcceptanceFields) {
         try {
           await createEventProposal({
-            name: name.trim(),
+            name: opportunityName,
             version: 1,
             status: 'ACCEPTED',
             total: {
@@ -594,16 +768,54 @@ const OpportunityCreateGateModalContent = () => {
       </StyledSectionContainer>
 
       <StyledFields>
-        <GateFieldWrapper status={getFieldStatus(name.trim().length > 0)}>
-          <SettingsTextInput
-            instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-name`}
-            label="Nome do evento"
-            value={name}
-            onChange={setName}
-            autoFocusOnMount
+        <GateFieldWrapper status={getFieldStatus(hasModality)}>
+          <Select
+            dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-modality`}
+            label="Modalidade"
+            value={modality}
+            options={GSH_EVENT_MODALITY_OPTIONS}
+            emptyOption={emptySelectOption}
+            onChange={setModality}
+            isDropdownInModal
             fullWidth
           />
         </GateFieldWrapper>
+
+        {isInternalModality && (
+          <EventCatalogVenueField
+            venue={venue}
+            onVenueChange={setVenue}
+            status={getFieldStatus(isVenueSatisfied)}
+            dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-venue`}
+          />
+        )}
+
+        {isInternalModality ? (
+          isVenueSatisfied && (
+            <EventCatalogIdentityField
+              eventCatalogId={eventCatalogId}
+              onEventCatalogIdChange={setEventCatalogId}
+              onRecordChange={handleEventCatalogRecordChange}
+              status={getFieldStatus(isEventIdentitySatisfied)}
+              testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-catalog`}
+            />
+          )
+        ) : (
+          <GateFieldWrapper status={getFieldStatus(isEventIdentitySatisfied)}>
+            <SettingsTextInput
+              instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-name`}
+              label="Nome do evento"
+              value={name}
+              onChange={setName}
+              disabled={!hasModality}
+              placeholder={
+                hasModality ? undefined : 'Escolha a modalidade primeiro'
+              }
+              autoFocusOnMount={hasModality}
+              fullWidth
+            />
+          </GateFieldWrapper>
+        )}
 
         <GateFieldWrapper status={getFieldStatus(isDefined(companyId))}>
           <FormSingleRecordPicker
@@ -629,23 +841,10 @@ const OpportunityCreateGateModalContent = () => {
           />
         </GateFieldWrapper>
 
-        <GateFieldWrapper status={getFieldStatus(modality.length > 0)}>
-          <Select
-            dropdownId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-modality`}
-            label="Modalidade"
-            value={modality}
-            options={GSH_EVENT_MODALITY_OPTIONS}
-            emptyOption={emptySelectOption}
-            onChange={setModality}
-            isDropdownInModal
-            fullWidth
-          />
-        </GateFieldWrapper>
-
         <GateFieldWrapper status={getFieldStatus(isDefined(eventAt))}>
           <SettingsTextInput
             instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-at`}
-            label="Data prevista do evento"
+            label="Data de início do evento"
             type="datetime-local"
             value={toDateTimeLocalInputValue(eventAt)}
             onChange={(value) => setEventAt(fromDateTimeLocalInputValue(value))}
@@ -653,19 +852,15 @@ const OpportunityCreateGateModalContent = () => {
           />
         </GateFieldWrapper>
 
-        <GateFieldWrapper
-          status={getFieldStatus(
-            Number.isFinite(parsedAmount) && parsedAmount > 0,
-          )}
-        >
+        <GateFieldWrapper status={getFieldStatus(isDefined(eventEndAt))}>
           <SettingsTextInput
-            instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-amount`}
-            label="Valor estimado (R$)"
-            type="number"
-            min={0}
-            leftAdornment="R$"
-            value={amount}
-            onChange={setAmount}
+            instanceId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-end-at`}
+            label="Data de fim do evento (opcional)"
+            type="datetime-local"
+            value={toDateTimeLocalInputValue(eventEndAt)}
+            onChange={(value) =>
+              setEventEndAt(fromDateTimeLocalInputValue(value))
+            }
             fullWidth
           />
         </GateFieldWrapper>

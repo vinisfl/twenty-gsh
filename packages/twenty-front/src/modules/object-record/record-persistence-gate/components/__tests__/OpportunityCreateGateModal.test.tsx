@@ -15,6 +15,7 @@ const mockCreateCompany = jest.fn();
 const mockCreatePerson = jest.fn();
 const mockCreateCorporateEvent = jest.fn();
 const mockCreateEventProposal = jest.fn();
+const mockCreateEventCatalog = jest.fn();
 const mockCreateTask = jest.fn();
 const mockCreateTaskTarget = jest.fn();
 const mockUpdateOneRecord = jest.fn();
@@ -52,6 +53,8 @@ jest.mock('@/object-record/hooks/useCreateOneRecord', () => ({
         return { createOneRecord: mockCreateCorporateEvent };
       case 'eventProposal':
         return { createOneRecord: mockCreateEventProposal };
+      case 'eventCatalog':
+        return { createOneRecord: mockCreateEventCatalog };
       case CoreObjectNameSingular.Task:
         return { createOneRecord: mockCreateTask };
       case CoreObjectNameSingular.TaskTarget:
@@ -70,12 +73,18 @@ jest.mock('@/object-record/hooks/useUpdateOneRecord', () => ({
 
 let companyRecords: unknown[] = [];
 let isLoadingCompany = false;
+let eventCatalogRecords: unknown[] = [];
+let isLoadingEventCatalog = false;
 
 jest.mock('@/object-record/hooks/useFindManyRecords', () => ({
-  useFindManyRecords: () => ({
-    records: companyRecords,
-    loading: isLoadingCompany,
-  }),
+  useFindManyRecords: ({
+    objectNameSingular,
+  }: {
+    objectNameSingular: string;
+  }) =>
+    objectNameSingular === 'eventCatalog'
+      ? { records: eventCatalogRecords, loading: isLoadingEventCatalog }
+      : { records: companyRecords, loading: isLoadingCompany },
 }));
 
 // GSH-specific: corporateEvent and eventProposal are custom objects
@@ -98,9 +107,18 @@ const FAKE_EVENT_PROPOSAL_METADATA_ITEM: EnrichedObjectMetadataItem = {
   fields: [],
 };
 
+const FAKE_EVENT_CATALOG_METADATA_ITEM: EnrichedObjectMetadataItem = {
+  ...getTestEnrichedObjectMetadataItemsMock()[0],
+  id: 'event-catalog-metadata-id',
+  nameSingular: 'eventCatalog',
+  namePlural: 'eventCatalogs',
+  fields: [],
+};
+
 const PICKED_RECORD_ID_BY_TEST_ID: Record<string, string> = {
   'opportunity-create-gate-modal-company': 'company-1',
   'opportunity-create-gate-modal-person': 'person-1',
+  'opportunity-create-gate-modal-event-catalog': 'event-catalog-1',
 };
 
 jest.mock(
@@ -108,17 +126,27 @@ jest.mock(
   () => ({
     FormSingleRecordPicker: ({
       onChange,
+      onCreate,
       testId,
     }: {
       onChange: (value: string) => void;
+      onCreate?: (searchInput?: string) => void | Promise<void>;
       testId: string;
     }) => (
-      <button
-        data-testid={testId}
-        onClick={() => onChange(PICKED_RECORD_ID_BY_TEST_ID[testId])}
-      >
-        pick record
-      </button>
+      <div>
+        <button
+          data-testid={testId}
+          onClick={() => onChange(PICKED_RECORD_ID_BY_TEST_ID[testId])}
+        >
+          pick record
+        </button>
+        <button
+          data-testid={`${testId}-create`}
+          onClick={() => onCreate?.('Novo item')}
+        >
+          create record
+        </button>
+      </div>
     ),
   }),
 );
@@ -188,23 +216,33 @@ const Wrapper = getJestMetadataAndApolloMocksWrapper({
     ...getTestEnrichedObjectMetadataItemsMock(),
     FAKE_CORPORATE_EVENT_METADATA_ITEM,
     FAKE_EVENT_PROPOSAL_METADATA_ITEM,
+    FAKE_EVENT_CATALOG_METADATA_ITEM,
+  ],
+});
+
+// eventCatalog (#67/#68) may not be applied to a given workspace's schema
+// yet even though this modal's code is deployed — the base modal must keep
+// working regardless, only without the Modalidade Interna picker.
+const WrapperWithoutEventCatalog = getJestMetadataAndApolloMocksWrapper({
+  apolloMocks: [],
+  objectMetadataItems: [
+    ...getTestEnrichedObjectMetadataItemsMock(),
+    FAKE_CORPORATE_EVENT_METADATA_ITEM,
+    FAKE_EVENT_PROPOSAL_METADATA_ITEM,
   ],
 });
 
 const fillRequiredFields = () => {
+  fireEvent.change(
+    screen.getByTestId('opportunity-create-gate-modal-modality'),
+    { target: { value: 'EXTERNAL' } },
+  );
   fireEvent.change(screen.getByLabelText('Nome do evento'), {
     target: { value: 'Confraternização de fim de ano' },
   });
   fireEvent.click(screen.getByTestId('opportunity-create-gate-modal-company'));
-  fireEvent.change(
-    screen.getByTestId('opportunity-create-gate-modal-modality'),
-    { target: { value: 'INTERNAL' } },
-  );
-  fireEvent.change(screen.getByLabelText('Data prevista do evento'), {
+  fireEvent.change(screen.getByLabelText('Data de início do evento'), {
     target: { value: '2026-09-10T14:30' },
-  });
-  fireEvent.change(screen.getByLabelText('Valor estimado (R$)'), {
-    target: { value: '5000' },
   });
   fireEvent.change(screen.getByTestId('opportunity-create-gate-modal-source'), {
     target: { value: 'WHATSAPP' },
@@ -216,6 +254,8 @@ describe('OpportunityCreateGateModal', () => {
     jest.clearAllMocks();
     companyRecords = [];
     isLoadingCompany = false;
+    eventCatalogRecords = [];
+    isLoadingEventCatalog = false;
     jotaiStore.set(currentWorkspaceMemberState.atom, {
       id: 'workspace-member-1',
     } as never);
@@ -224,6 +264,7 @@ describe('OpportunityCreateGateModal', () => {
     mockCreatePerson.mockResolvedValue({ id: 'person-1' });
     mockCreateCorporateEvent.mockResolvedValue({ id: 'event-1' });
     mockCreateEventProposal.mockResolvedValue({ id: 'proposal-1' });
+    mockCreateEventCatalog.mockResolvedValue({ id: 'event-catalog-1' });
     mockCreateTask.mockResolvedValue({ id: 'task-1' });
     mockCreateTaskTarget.mockResolvedValue({ id: 'task-target-1' });
     mockUpdateOneRecord.mockResolvedValue({ id: 'company-1' });
@@ -296,17 +337,19 @@ describe('OpportunityCreateGateModal', () => {
         name: 'Confraternização de fim de ano',
         companyId: 'company-1',
         pointOfContactId: null,
-        eventModality: 'INTERNAL',
+        eventModality: 'EXTERNAL',
         eventAt: new Date('2026-09-10T14:30').toISOString(),
-        amount: { amountMicros: 5_000_000_000, currencyCode: 'BRL' },
         eventSource: 'WHATSAPP',
         ownerId: 'workspace-member-1',
       }),
     );
+    expect(mockCreateOpportunity.mock.calls[0][0]).not.toHaveProperty(
+      'eventCatalogId',
+    );
 
     expect(mockCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Fazer contato inicial e capturar briefing',
+        title: 'Enviar contato inicial',
         status: 'TODO',
         assigneeId: 'workspace-member-1',
       }),
@@ -324,7 +367,7 @@ describe('OpportunityCreateGateModal', () => {
         objectNameSingular: CoreObjectNameSingular.Opportunity,
         idToUpdate: 'opportunity-1',
         updateOneRecordInput: {
-          eventNextAction: 'Fazer contato inicial e capturar briefing',
+          eventNextAction: 'Enviar contato inicial',
           eventNextActionAt: createdTaskDueAt,
         },
       }),
@@ -390,6 +433,296 @@ describe('OpportunityCreateGateModal', () => {
     expect(modalityLabel).toHaveTextContent('Selecionar...');
     expect(sourceLabel).toHaveTextContent('Selecionar...');
     expect(eventTypeLabel).toHaveTextContent('Selecionar...');
+  });
+
+  describe('the event-identity field for Modalidade', () => {
+    it('disables the free-text event name field with a placeholder until a modality is picked', () => {
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      const nameField = screen.getByLabelText(
+        'Nome do evento',
+      ) as HTMLInputElement;
+
+      expect(nameField).toBeDisabled();
+      expect(nameField.placeholder).toBe('Escolha a modalidade primeiro');
+    });
+
+    it('keeps the free-text event name field for Modalidade Externa', () => {
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'EXTERNAL' } },
+      );
+
+      expect(screen.getByLabelText('Nome do evento')).toBeEnabled();
+      expect(
+        screen.queryByTestId('opportunity-create-gate-modal-event-catalog'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('switches to the eventCatalog picker for Modalidade Interna, and uses the picked record as the opportunity name and eventCatalogId', async () => {
+      eventCatalogRecords = [
+        {
+          id: 'event-catalog-1',
+          name: 'Jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'INTERNAL' } },
+      );
+
+      expect(screen.queryByLabelText('Nome do evento')).not.toBeInTheDocument();
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-venue'),
+        { target: { value: 'Nubank Arena' } },
+      );
+
+      fireEvent.click(
+        screen.getByTestId('opportunity-create-gate-modal-event-catalog'),
+      );
+      fireEvent.click(
+        screen.getByTestId('opportunity-create-gate-modal-company'),
+      );
+      fireEvent.change(screen.getByLabelText('Data de início do evento'), {
+        target: { value: '2026-09-10T14:30' },
+      });
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-source'),
+        { target: { value: 'WHATSAPP' } },
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Criar'));
+      });
+
+      expect(mockCreateOpportunity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Jogo Nubank',
+          eventCatalogId: 'event-catalog-1',
+          eventModality: 'INTERNAL',
+        }),
+      );
+    });
+
+    it('creates a new eventCatalog record inline and selects it, mirroring the Empresa/Contato pattern', async () => {
+      eventCatalogRecords = [
+        {
+          id: 'event-catalog-1',
+          name: 'Jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'INTERNAL' } },
+      );
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-venue'),
+        { target: { value: 'Nubank Arena' } },
+      );
+
+      await act(async () => {
+        fireEvent.click(
+          screen.getByTestId(
+            'opportunity-create-gate-modal-event-catalog-create',
+          ),
+        );
+      });
+
+      expect(mockCreateEventCatalog).toHaveBeenCalled();
+    });
+
+    it('hides the Venue field for Modalidade Externa and before any modality is picked', () => {
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      expect(
+        screen.queryByTestId('opportunity-create-gate-modal-venue'),
+      ).not.toBeInTheDocument();
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'EXTERNAL' } },
+      );
+
+      expect(
+        screen.queryByTestId('opportunity-create-gate-modal-venue'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('offers the distinct venueGroup values across eventCatalog records as Venue options, and keeps Evento hidden until a venue is picked', () => {
+      eventCatalogRecords = [
+        {
+          id: 'event-catalog-1',
+          name: 'Jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+        {
+          id: 'event-catalog-2',
+          name: 'Jogo Morumbis',
+          venueGroup: 'Morumbis',
+        },
+        {
+          id: 'event-catalog-3',
+          name: 'Outro jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+        {
+          id: 'event-catalog-4',
+          name: 'Sem venue cadastrado',
+          venueGroup: null,
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'INTERNAL' } },
+      );
+
+      const venueSelect = screen.getByTestId(
+        'opportunity-create-gate-modal-venue',
+      ) as HTMLSelectElement;
+      const venueOptionValues = Array.from(venueSelect.options).map(
+        (option) => option.value,
+      );
+
+      expect(venueOptionValues).toEqual(['', 'Morumbis', 'Nubank Arena']);
+      expect(
+        screen.queryByTestId('opportunity-create-gate-modal-event-catalog'),
+      ).not.toBeInTheDocument();
+
+      fireEvent.change(venueSelect, { target: { value: 'Nubank Arena' } });
+
+      expect(
+        screen.getByTestId('opportunity-create-gate-modal-event-catalog'),
+      ).toBeInTheDocument();
+    });
+
+    it('blocks creation until a Venue is picked for Modalidade Interna, even once Evento and the other base fields are filled', async () => {
+      eventCatalogRecords = [
+        {
+          id: 'event-catalog-1',
+          name: 'Jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'INTERNAL' } },
+      );
+      fireEvent.click(
+        screen.getByTestId('opportunity-create-gate-modal-company'),
+      );
+      fireEvent.change(screen.getByLabelText('Data de início do evento'), {
+        target: { value: '2026-09-10T14:30' },
+      });
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-source'),
+        { target: { value: 'WHATSAPP' } },
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Criar'));
+      });
+
+      expect(mockCreateOpportunity).not.toHaveBeenCalled();
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-venue'),
+        { target: { value: 'Nubank Arena' } },
+      );
+      fireEvent.click(
+        screen.getByTestId('opportunity-create-gate-modal-event-catalog'),
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Criar'));
+      });
+
+      expect(mockCreateOpportunity).toHaveBeenCalledWith(
+        expect.objectContaining({ eventCatalogId: 'event-catalog-1' }),
+      );
+    });
+
+    it('still renders and creates opportunities when eventCatalog is not yet on the workspace schema, without offering Modalidade Interna', async () => {
+      render(<OpportunityCreateGateModal />, {
+        wrapper: WrapperWithoutEventCatalog,
+      });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      expect(
+        screen.getByTestId(
+          'opportunity-create-gate-modal-modality-selected-label',
+        ),
+      ).not.toHaveTextContent('Interno / na casa');
+
+      fillRequiredFields();
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Criar'));
+      });
+
+      expect(mockCreateOpportunity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Confraternização de fim de ano',
+          eventModality: 'EXTERNAL',
+        }),
+      );
+    });
   });
 
   describe('cumulative fields when created directly in an advanced column', () => {
@@ -493,6 +826,7 @@ describe('OpportunityCreateGateModal', () => {
         city: 'São Paulo',
         estimatedAudience: 80,
         startAt: new Date('2026-09-10T14:30').toISOString(),
+        endAt: null,
         opportunityId: 'opportunity-1',
       });
 
@@ -501,7 +835,7 @@ describe('OpportunityCreateGateModal', () => {
       expect(mockCreateTask).toHaveBeenCalledTimes(1);
       expect(mockCreateTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'Fazer contato inicial e capturar briefing',
+          title: 'Enviar contato inicial',
         }),
       );
     });
@@ -590,7 +924,7 @@ describe('OpportunityCreateGateModal', () => {
       expect(mockCreateTask).toHaveBeenCalledTimes(1);
       expect(mockCreateTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'Fazer contato inicial e capturar briefing',
+          title: 'Enviar contato inicial',
         }),
       );
     });
@@ -649,7 +983,7 @@ describe('OpportunityCreateGateModal', () => {
       expect(mockCreateTask).toHaveBeenCalledTimes(1);
       expect(mockCreateTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'Fazer contato inicial e capturar briefing',
+          title: 'Enviar contato inicial',
         }),
       );
     });

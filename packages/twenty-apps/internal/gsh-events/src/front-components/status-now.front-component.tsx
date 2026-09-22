@@ -13,6 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import {
   Trans,
   enqueueSnackbar,
+  uploadFile,
   useFrontComponentExecutionContext,
   useTranslate,
 } from 'twenty-sdk/front-component';
@@ -69,6 +70,7 @@ import {
   completeRegistrationRequestTask,
 } from 'src/front-components/services/complete-stage-transition-task.service';
 import { getTaskAttachmentsCount } from 'src/front-components/services/get-task-attachments-count.service';
+import { getTaskAttachmentFileFieldMetadataId } from 'src/front-components/services/get-task-attachment-file-field-metadata-id.service';
 import { syncOpportunityNextAction } from 'src/front-components/services/sync-opportunity-next-action.service';
 import { uploadTaskAttachment } from 'src/front-components/services/upload-task-attachment.service';
 import { EVENT_CURRENT_SITUATION_OPTIONS } from 'src/fields/opportunity-current-situation.field';
@@ -216,6 +218,29 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
+  modalBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing4,
+    background: 'rgba(0, 0, 0, 0.45)',
+    zIndex: 10,
+  },
+  modal: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing3,
+    width: '100%',
+    maxWidth: '420px',
+    padding: theme.spacing4,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 'var(--t-border-radius-sm)',
+    background: theme.backgroundPrimary,
+    boxShadow: '0 12px 28px rgba(0, 0, 0, 0.3)',
+  },
+  modalTitle: { margin: 0, fontSize: theme.sizeSm, fontWeight: 600 },
 };
 
 type StageOption = (typeof EVENT_PROCESS_STAGE_OPTIONS)[number];
@@ -1580,7 +1605,7 @@ const StatusNow = () => {
 
     if (!attachmentPanel.file) {
       await enqueueSnackbar({
-        message: t('Selecione um arquivo antes de concluir.'),
+        message: t('Selecione um arquivo antes de confirmar.'),
         variant: 'error',
       });
       return;
@@ -1588,11 +1613,20 @@ const StatusNow = () => {
 
     setIsUpdatingNextAction(true);
     try {
+      const fieldMetadataId = await getTaskAttachmentFileFieldMetadataId(
+        new MetadataApiClient(),
+      );
+
+      if (!fieldMetadataId) {
+        throw new Error(t('Não foi possível preparar o envio do arquivo.'));
+      }
+
       await uploadTaskAttachment({
-        metadataClient: new MetadataApiClient(),
         coreClient: new CoreApiClient(),
+        uploadFile,
         file: attachmentPanel.file,
         taskId: attachmentPanel.task.id,
+        fieldMetadataId,
       });
 
       await completeInitialContact(attachmentPanel.task);
@@ -1714,8 +1748,7 @@ const StatusNow = () => {
             {rescheduleValue === null &&
             formalizationPanel === null &&
             qualificationPanel === null &&
-            stageTransitionPanel === null &&
-            attachmentPanel === null ? (
+            stageTransitionPanel === null ? (
               <div style={styles.actionControls}>
                 <button
                   type="button"
@@ -2088,48 +2121,6 @@ const StatusNow = () => {
                   </>
                 )}
               </div>
-            ) : attachmentPanel ? (
-              <div style={styles.rescheduleControls}>
-                <label style={styles.fieldLabel}>
-                  <Trans>Anexe um arquivo para concluir esta tarefa</Trans>
-                  <input
-                    type="file"
-                    onChange={(event) =>
-                      setAttachmentPanel((currentPanel) =>
-                        currentPanel
-                          ? {
-                              ...currentPanel,
-                              file: event.target.files?.[0] ?? null,
-                            }
-                          : currentPanel,
-                      )
-                    }
-                    disabled={isUpdatingNextAction}
-                  />
-                </label>
-                <div style={styles.actionControls}>
-                  <button
-                    type="button"
-                    style={styles.actionButton}
-                    onClick={() => void saveTaskAttachment()}
-                    disabled={isUpdatingNextAction || !attachmentPanel.file}
-                  >
-                    {isUpdatingNextAction ? (
-                      <Trans>Salvando…</Trans>
-                    ) : (
-                      <Trans>Concluir</Trans>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.actionButton}
-                    onClick={() => setAttachmentPanel(null)}
-                    disabled={isUpdatingNextAction}
-                  >
-                    <Trans>Cancelar</Trans>
-                  </button>
-                </div>
-              </div>
             ) : (
               <div style={styles.rescheduleControls}>
                 <DatePicker
@@ -2194,6 +2185,67 @@ const StatusNow = () => {
               <Trans>Resolver</Trans>
             )}
           </button>
+        </div>
+      ) : null}
+      {attachmentPanel ? (
+        <div
+          style={styles.modalBackdrop}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="task-attachment-modal-title"
+        >
+          <div style={styles.modal}>
+            <h2 id="task-attachment-modal-title" style={styles.modalTitle}>
+              <Trans>Anexar arquivo para concluir</Trans>
+            </h2>
+            <span style={styles.empty}>
+              <Trans>
+                Envie o arquivo necessário e confirme para concluir esta tarefa.
+              </Trans>
+            </span>
+            <label style={styles.fieldLabel}>
+              <Trans>Arquivo</Trans>
+              <input
+                type="file"
+                onChange={(event) =>
+                  setAttachmentPanel((currentPanel) =>
+                    currentPanel
+                      ? {
+                          ...currentPanel,
+                          file: event.target.files?.[0] ?? null,
+                        }
+                      : currentPanel,
+                  )
+                }
+                disabled={isUpdatingNextAction}
+              />
+            </label>
+            {attachmentPanel.file ? (
+              <span style={styles.empty}>{attachmentPanel.file.name}</span>
+            ) : null}
+            <div style={styles.actionControls}>
+              <button
+                type="button"
+                style={{ ...styles.actionButton, ...styles.completeButton }}
+                onClick={() => void saveTaskAttachment()}
+                disabled={isUpdatingNextAction || !attachmentPanel.file}
+              >
+                {isUpdatingNextAction ? (
+                  <Trans>Enviando…</Trans>
+                ) : (
+                  <Trans>Confirmar e concluir</Trans>
+                )}
+              </button>
+              <button
+                type="button"
+                style={styles.actionButton}
+                onClick={() => setAttachmentPanel(null)}
+                disabled={isUpdatingNextAction}
+              >
+                <Trans>Cancelar</Trans>
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

@@ -14,6 +14,7 @@ import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/
 type OpportunityReadinessRecord = ObjectRecord & {
   eventProcessStage: string | null;
   eventAudience: number | null;
+  eventModality: string | null;
   eventLocation: string | null;
   eventAt: string | null;
   amount: { amountMicros: number } | null;
@@ -100,6 +101,7 @@ const OpportunityStageReadinessProviderContent = ({
         id: true,
         eventProcessStage: true,
         eventAudience: true,
+        eventModality: true,
         eventLocation: true,
         eventAt: true,
         amount: true,

@@ -12,6 +12,7 @@ export type OpportunityStageReadiness = {
 type OpportunityStageReadinessOpportunity = {
   eventProcessStage: string | null | undefined;
   eventAudience?: number | null | undefined;
+  eventModality?: string | null | undefined;
   eventLocation?: string | null | undefined;
   eventAt?: string | null | undefined;
   amount?: MonetaryAmountDraft | null | undefined;
@@ -71,10 +72,9 @@ export const getOpportunityStageReadiness = ({
         getQualificationToProposalGateRequirements({
           opportunity: {
             eventAudience: opportunity?.eventAudience,
+            eventModality: opportunity?.eventModality,
             eventLocation: opportunity?.eventLocation,
             eventAt: opportunity?.eventAt,
-            amount: opportunity?.amount,
-            eventBudgetCompatible: opportunity?.eventBudgetCompatible,
           },
           corporateEvent: {
             eventType: corporateEvent?.eventType,

@@ -7,8 +7,6 @@ describe('getQualificationToProposalGateRequirements', () => {
         eventAudience: 120,
         eventLocation: 'Salão Jardim',
         eventAt: '2026-10-01T18:00:00.000Z',
-        amount: { amountMicros: 15_000_000_000 },
-        eventBudgetCompatible: true,
       },
       corporateEvent: { eventType: 'COCKTAIL', city: 'São Paulo' },
     });
@@ -21,8 +19,6 @@ describe('getQualificationToProposalGateRequirements', () => {
         'location',
         'city',
         'eventAt',
-        'amount',
-        'budgetCompatible',
       ],
       missingRequirementKeys: [],
     });
@@ -43,8 +39,6 @@ describe('getQualificationToProposalGateRequirements', () => {
         'location',
         'city',
         'eventAt',
-        'amount',
-        'budgetCompatible',
       ],
     });
   });
@@ -55,21 +49,38 @@ describe('getQualificationToProposalGateRequirements', () => {
         eventAudience: 0,
         eventLocation: 'Salão Jardim',
         eventAt: '',
-        amount: { amountMicros: 15_000_000_000 },
-        eventBudgetCompatible: false,
       },
       corporateEvent: { eventType: 'COCKTAIL', city: '' },
     });
 
     expect(result).toEqual({
       isSatisfied: false,
-      metRequirementKeys: ['eventType', 'location', 'amount'],
-      missingRequirementKeys: [
+      metRequirementKeys: ['eventType', 'location'],
+      missingRequirementKeys: ['audience', 'city', 'eventAt'],
+    });
+  });
+
+  it('does not require a separately entered city for an internal arena', () => {
+    const result = getQualificationToProposalGateRequirements({
+      opportunity: {
+        eventModality: 'INTERNAL',
+        eventAudience: 120,
+        eventLocation: 'Nubank',
+        eventAt: '2026-10-01T18:00:00.000Z',
+      },
+      corporateEvent: { eventType: 'COCKTAIL', city: '' },
+    });
+
+    expect(result).toEqual({
+      isSatisfied: true,
+      metRequirementKeys: [
+        'eventType',
         'audience',
+        'location',
         'city',
         'eventAt',
-        'budgetCompatible',
       ],
+      missingRequirementKeys: [],
     });
   });
 });

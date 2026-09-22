@@ -1,11 +1,10 @@
 import { serializeFileList } from '../serializeFileList';
 
-const validFile = {
-  name: 'report.csv',
-  size: 42,
-  type: 'text/csv',
-  lastModified: 1700000000000,
-};
+const buildFile = () =>
+  new File(['report contents'], 'report.csv', {
+    type: 'text/csv',
+    lastModified: 1700000000000,
+  });
 
 describe('serializeFileList', () => {
   it('should return undefined for a non-object', () => {
@@ -17,22 +16,26 @@ describe('serializeFileList', () => {
     expect(serializeFileList({})).toBeUndefined();
   });
 
-  it('should serialize only the safe metadata of each file', () => {
+  it('preserves the selected file for front-component uploads', () => {
+    const file = buildFile();
     const result = serializeFileList({
       length: 1,
-      0: { ...validFile, arrayBuffer: () => {} },
+      0: file,
     });
 
-    expect(result).toEqual([validFile]);
+    expect(result).toHaveLength(1);
+    expect(result?.[0]).toBeInstanceOf(File);
+    expect(result?.[0]).toBe(file);
   });
 
   it('should skip entries missing required fields', () => {
     const result = serializeFileList({
       length: 2,
-      0: validFile,
+      0: buildFile(),
       1: { name: 'incomplete' },
     });
 
-    expect(result).toEqual([validFile]);
+    expect(result).toHaveLength(1);
+    expect(result?.[0]).toBeInstanceOf(File);
   });
 });
