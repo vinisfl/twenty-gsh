@@ -29,6 +29,7 @@ import { GSH_EVENT_MODALITY_OPTIONS } from '@/object-record/record-persistence-g
 import { GSH_EVENT_SOURCE_OPTIONS } from '@/object-record/record-persistence-gate/constants/GshEventSourceOptions';
 import { GSH_EVENT_TYPE_OPTIONS } from '@/object-record/record-persistence-gate/constants/GshEventTypeOptions';
 import { OPPORTUNITY_CREATE_GATE_MODAL_ID } from '@/object-record/record-persistence-gate/constants/OpportunityCreateGateModalId';
+import { useEventCatalogRecordIdsNotMatchingVenue } from '@/object-record/record-persistence-gate/hooks/useEventCatalogRecordIdsNotMatchingVenue';
 import { useEventCatalogVenueGroupOptions } from '@/object-record/record-persistence-gate/hooks/useEventCatalogVenueGroupOptions';
 import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
 import { opportunityCreateGatePendingRequestState } from '@/object-record/record-persistence-gate/states/opportunityCreateGatePendingRequestState';
@@ -100,6 +101,7 @@ type CompanyFiscalRecord = ObjectRecord & {
 
 type EventCatalogRecord = ObjectRecord & {
   name: string;
+  venueGroup: string | null;
 };
 
 type BaseFieldRequirement = {
@@ -213,6 +215,7 @@ type EventCatalogIdentityFieldProps = {
   ) => void;
   status: GateFieldStatus;
   testId: string;
+  venue: string;
 };
 
 // Split out from OpportunityCreateGateModalContent so the eventCatalog-typed
@@ -225,6 +228,7 @@ const EventCatalogIdentityField = ({
   onRecordChange,
   status,
   testId,
+  venue,
 }: EventCatalogIdentityFieldProps) => {
   const { createOneRecord: createEventCatalog } = useCreateOneRecord({
     objectNameSingular: 'eventCatalog',
@@ -241,6 +245,7 @@ const EventCatalogIdentityField = ({
       skip: !isDefined(eventCatalogId),
     });
   const eventCatalog = eventCatalogs[0];
+  const excludedRecordIds = useEventCatalogRecordIdsNotMatchingVenue(venue);
 
   useEffect(() => {
     onRecordChange(eventCatalog, isLoadingEventCatalog);
@@ -271,6 +276,7 @@ const EventCatalogIdentityField = ({
         }
         onCreate={handleCreateEventCatalog}
         objectNameSingulars={['eventCatalog']}
+        excludedRecordIds={excludedRecordIds}
         isDropdownInModal
         testId={testId}
       />
@@ -477,6 +483,23 @@ const OpportunityCreateGateModalContent = () => {
     },
     [],
   );
+
+  // Reconciles against eventCatalog rather than clearing inline on Venue
+  // change: eventCatalog itself only reaches this component asynchronously
+  // (via EventCatalogIdentityField's own record fetch), so a Venue change
+  // that lands before that fetch resolves would otherwise read a stale
+  // value and miss the mismatch. Re-running this whenever eventCatalog
+  // finishes loading catches that case too.
+  useEffect(() => {
+    if (
+      isDefined(eventCatalogId) &&
+      isDefined(eventCatalog) &&
+      !isLoadingEventCatalog &&
+      eventCatalog.venueGroup !== venue
+    ) {
+      setEventCatalogId(null);
+    }
+  }, [eventCatalog, eventCatalogId, isLoadingEventCatalog, venue]);
 
   const isVenueSatisfied = venue.length > 0;
   const isEventIdentitySatisfied = isInternalModality
@@ -798,6 +821,7 @@ const OpportunityCreateGateModalContent = () => {
               onRecordChange={handleEventCatalogRecordChange}
               status={getFieldStatus(isEventIdentitySatisfied)}
               testId={`${OPPORTUNITY_CREATE_GATE_MODAL_ID}-event-catalog`}
+              venue={venue}
             />
           )
         ) : (

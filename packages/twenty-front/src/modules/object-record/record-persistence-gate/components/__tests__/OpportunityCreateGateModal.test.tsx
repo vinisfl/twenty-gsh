@@ -128,10 +128,12 @@ jest.mock(
       onChange,
       onCreate,
       testId,
+      excludedRecordIds,
     }: {
       onChange: (value: string) => void;
       onCreate?: (searchInput?: string) => void | Promise<void>;
       testId: string;
+      excludedRecordIds?: string[];
     }) => (
       <div>
         <button
@@ -146,6 +148,9 @@ jest.mock(
         >
           create record
         </button>
+        <span data-testid={`${testId}-excluded-record-ids`}>
+          {(excludedRecordIds ?? []).join(',')}
+        </span>
       </div>
     ),
   }),
@@ -692,6 +697,115 @@ describe('OpportunityCreateGateModal', () => {
       expect(mockCreateOpportunity).toHaveBeenCalledWith(
         expect.objectContaining({ eventCatalogId: 'event-catalog-1' }),
       );
+    });
+
+    it('limits the Evento picker to eventCatalog records matching the selected Venue, and updates as Venue changes', () => {
+      eventCatalogRecords = [
+        {
+          id: 'event-catalog-1',
+          name: 'Jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+        {
+          id: 'event-catalog-2',
+          name: 'Jogo Morumbis',
+          venueGroup: 'Morumbis',
+        },
+        {
+          id: 'event-catalog-3',
+          name: 'Outro jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'INTERNAL' } },
+      );
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-venue'),
+        { target: { value: 'Nubank Arena' } },
+      );
+
+      const getExcludedIds = () =>
+        screen
+          .getByTestId(
+            'opportunity-create-gate-modal-event-catalog-excluded-record-ids',
+          )
+          .textContent?.split(',')
+          .filter(Boolean);
+
+      expect(getExcludedIds()).toEqual(['event-catalog-2']);
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-venue'),
+        { target: { value: 'Morumbis' } },
+      );
+
+      expect(getExcludedIds()).toEqual(['event-catalog-1', 'event-catalog-3']);
+    });
+
+    it('clears the selected Evento when Venue changes to one it no longer matches', () => {
+      eventCatalogRecords = [
+        {
+          id: 'event-catalog-1',
+          name: 'Jogo Nubank',
+          venueGroup: 'Nubank Arena',
+        },
+        {
+          id: 'event-catalog-2',
+          name: 'Jogo Morumbis',
+          venueGroup: 'Morumbis',
+        },
+      ];
+
+      render(<OpportunityCreateGateModal />, { wrapper: Wrapper });
+
+      const handler = jotaiStore.get(opportunityCreateGateHandlerState);
+      act(() => {
+        handler?.({ recordInput: {} });
+      });
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-modality'),
+        { target: { value: 'INTERNAL' } },
+      );
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-venue'),
+        { target: { value: 'Nubank Arena' } },
+      );
+      fireEvent.click(
+        screen.getByTestId('opportunity-create-gate-modal-event-catalog'),
+      );
+      fireEvent.click(
+        screen.getByTestId('opportunity-create-gate-modal-company'),
+      );
+      fireEvent.change(screen.getByLabelText('Data de início do evento'), {
+        target: { value: '2026-09-10T14:30' },
+      });
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-source'),
+        { target: { value: 'WHATSAPP' } },
+      );
+
+      const getCreateButton = () =>
+        screen.getByText('Criar').closest('button') as HTMLButtonElement;
+
+      expect(getCreateButton()).not.toBeDisabled();
+
+      fireEvent.change(
+        screen.getByTestId('opportunity-create-gate-modal-venue'),
+        { target: { value: 'Morumbis' } },
+      );
+
+      expect(getCreateButton()).toBeDisabled();
     });
 
     it('still renders and creates opportunities when eventCatalog is not yet on the workspace schema, without offering Modalidade Interna', async () => {
