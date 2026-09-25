@@ -57,6 +57,24 @@ export const EVENT_CATALOG_ORIGIN = {
   EXTERNAL: 'EXTERNAL',
 } as const;
 
+// Closed list of GSH venue groups, sourced from gld_dim_evento.venue_grupo
+// (Databricks gold layer) — a sponsorship/campaign-level grouping, not the
+// physical venue. New venues require adding an option here before the next
+// sync/import can classify them.
+export const EVENT_CATALOG_VENUE_GROUP = {
+  ARENA_MRV: 'ARENA_MRV',
+  CASA_COR_SP_2026: 'CASA_COR_SP_2026',
+  ESPLANADA: 'ESPLANADA',
+  GSH_QUALISTAGE_RJ: 'GSH_QUALISTAGE_RJ',
+  MORUMBIS_ANUAL_2026: 'MORUMBIS_ANUAL_2026',
+  NUBANK_ANUAL_26: 'NUBANK_ANUAL_26',
+  NUBANK_TOUR: 'NUBANK_TOUR',
+  PARQUE_AGUA_BRANCA: 'PARQUE_AGUA_BRANCA',
+  PARQUE_VILLA_LOBOS: 'PARQUE_VILLA_LOBOS',
+  PRO_MAGNO: 'PRO_MAGNO',
+  SUHAI_MUSIC_HALL: 'SUHAI_MUSIC_HALL',
+} as const;
+
 export const PROPOSAL_STATUS = {
   DRAFT: 'DRAFT',
   SENT: 'SENT',

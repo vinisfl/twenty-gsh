@@ -74,8 +74,12 @@ export const EVENT_CATALOG_EXTERNAL_ID_FIELD_UNIVERSAL_IDENTIFIER =
   '3cd19337-9ba6-4938-8c9b-3818e58c9b18';
 export const EVENT_CATALOG_EVENT_DATE_FIELD_UNIVERSAL_IDENTIFIER =
   '82b5ea3f-6ca6-4a8d-8720-cb33057c39a6';
+// Replaces the original text field (f0dda7d1-41f9-4aff-b1c1-6a2411d34e68):
+// field type isn't diffable by the SDK's plan/apply, so a TEXT->SELECT
+// change requires a new universalIdentifier (delete + recreate), not an
+// in-place edit. Safe here because production held zero eventCatalog rows.
 export const EVENT_CATALOG_VENUE_GROUP_FIELD_UNIVERSAL_IDENTIFIER =
-  'f0dda7d1-41f9-4aff-b1c1-6a2411d34e68';
+  '5ff6cf22-e44f-4e63-b776-1d5d8a1009a4';
 export const EVENT_CATALOG_EXPECTED_AUDIENCE_FIELD_UNIVERSAL_IDENTIFIER =
   '486217fd-44f5-4b06-a610-6ffa633c646f';
 export const EVENT_CATALOG_ACTUAL_AUDIENCE_FIELD_UNIVERSAL_IDENTIFIER =
