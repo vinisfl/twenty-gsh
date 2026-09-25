@@ -47,6 +47,7 @@ export const getAvailableAggregationsFromObjectFields = (
           [AggregateOperations.MAX]: `max${capitalize(field.name)}`,
           [AggregateOperations.AVG]: `avg${capitalize(field.name)}`,
           [AggregateOperations.SUM]: `sum${capitalize(field.name)}`,
+          [AggregateOperations.COUNT_AND_SUM]: `sum${capitalize(field.name)}`,
         };
       }
 
@@ -57,6 +58,7 @@ export const getAvailableAggregationsFromObjectFields = (
           [AggregateOperations.MAX]: `max${capitalize(field.name)}AmountMicros`,
           [AggregateOperations.AVG]: `avg${capitalize(field.name)}AmountMicros`,
           [AggregateOperations.SUM]: `sum${capitalize(field.name)}AmountMicros`,
+          [AggregateOperations.COUNT_AND_SUM]: `sum${capitalize(field.name)}AmountMicros`,
         };
       }
 

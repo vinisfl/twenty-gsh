@@ -16,4 +16,13 @@ describe('getAggregateLabelWithFieldName', () => {
       }),
     ).toBe('All of Name');
   });
+
+  it('should return correct label for the combined count and sum operation', () => {
+    expect(
+      getAggregateLabelWithFieldName({
+        aggregateFieldMetadataItem: mockFieldMetadataItem,
+        aggregateOperation: AggregateOperations.COUNT_AND_SUM,
+      }),
+    ).toBe('Count and sum of Name');
+  });
 });

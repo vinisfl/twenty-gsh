@@ -1,0 +1,20 @@
+export type OpportunityUpdate = {
+  stage?: string;
+  currentSituation?: string;
+  currentPending?: string;
+  nextAction?: string;
+  nextActionAt?: string;
+  source?: string;
+  modality?: string;
+  eventAt?: string;
+  location?: string;
+  audience?: number;
+  amountBRL?: number;
+  closedAmountBRL?: number;
+  paymentTerms?: string;
+  acceptanceEvidence?: string;
+  purchaseFormStatus?: string;
+  invoiceStatus?: string;
+  contractStatus?: string;
+  lossReason?: string;
+};

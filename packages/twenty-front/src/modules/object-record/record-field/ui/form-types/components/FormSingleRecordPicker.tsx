@@ -78,6 +78,8 @@ export type FormSingleRecordPickerProps = {
   testId?: string;
   VariablePicker?: VariablePickerComponent;
   shouldDisplayRecordFieldsInVariablePicker?: boolean;
+  isDropdownInModal?: boolean;
+  excludedRecordIds?: string[];
 };
 
 export const FormSingleRecordPicker = ({
@@ -93,6 +95,8 @@ export const FormSingleRecordPicker = ({
   testId,
   VariablePicker,
   shouldDisplayRecordFieldsInVariablePicker = false,
+  isDropdownInModal = false,
+  excludedRecordIds,
 }: FormSingleRecordPickerProps) => {
   const { theme } = useContext(ThemeContext);
 
@@ -222,6 +226,7 @@ export const FormSingleRecordPicker = ({
               clickableComponentWidth="100%"
               onClose={handleCloseRelationPickerDropdown}
               onOpen={handleOpenDropdown}
+              isDropdownInModal={isDropdownInModal}
               dropdownOffset={{
                 y: parseInt(theme.spacing[1], 10),
               }}
@@ -255,6 +260,7 @@ export const FormSingleRecordPicker = ({
                   componentInstanceId={dropdownId}
                   EmptyIcon={IconForbid}
                   emptyLabel={t`No record`}
+                  excludedRecordIds={excludedRecordIds}
                   onCancel={() => closeDropdown(dropdownId)}
                   onCreate={
                     isDefined(onCreate) ? handleCreateRecord : undefined

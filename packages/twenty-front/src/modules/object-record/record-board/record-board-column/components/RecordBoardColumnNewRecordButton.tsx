@@ -1,4 +1,6 @@
 import { useObjectPermissionsForObject } from '@/object-record/hooks/useObjectPermissionsForObject';
+import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
+import { getShouldBlockOpportunityCreate } from '@/object-record/record-persistence-gate/utils/getShouldBlockOpportunityCreate';
 import { RecordBoardContext } from '@/object-record/record-board/contexts/RecordBoardContext';
 import { RecordBoardColumnContext } from '@/object-record/record-board/record-board-column/contexts/RecordBoardColumnContext';
 import { hasAnySoftDeleteFilterOnViewComponentSelector } from '@/object-record/record-filter/states/hasAnySoftDeleteFilterOnView';
@@ -9,6 +11,7 @@ import { canCreateRecordsForObjectMetadataItem } from '@/object-record/utils/can
 import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorValue';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
+import { useAtomValue } from 'jotai';
 import { useContext } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import { IconPlus } from 'twenty-ui/icon';
@@ -50,6 +53,10 @@ export const RecordBoardColumnNewRecordButton = () => {
     objectMetadataItem: objectMetadataItem,
   });
 
+  const opportunityCreateGateHandler = useAtomValue(
+    opportunityCreateGateHandlerState,
+  );
+
   // Creating in a nested relation widget requires picking the related record
   // to create through, which only the table layout offers today.
   const nestedRelationCreateThrough = useContext(
@@ -76,10 +83,24 @@ export const RecordBoardColumnNewRecordButton = () => {
   return (
     <StyledNewButton
       onClick={async () => {
-        await createNewIndexRecord({
-          position: 'last',
+        const recordInput = {
           [getFieldMetadataItemGqlFieldName(selectFieldMetadataItem)]:
             columnDefinition.value,
+        };
+
+        if (
+          getShouldBlockOpportunityCreate({
+            objectNameSingular: objectMetadataItem.nameSingular,
+            recordInput,
+            opportunityCreateGateHandler,
+          })
+        ) {
+          return;
+        }
+
+        await createNewIndexRecord({
+          position: 'last',
+          ...recordInput,
         });
       }}
     >

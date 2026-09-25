@@ -1,5 +1,6 @@
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
+import { useAtomValue } from 'jotai';
 import { useContext } from 'react';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
@@ -15,6 +16,8 @@ import { hasAnySoftDeleteFilterOnViewComponentSelector } from '@/object-record/r
 import { RecordGroupAggregateDropdown } from '@/object-record/record-group/components/RecordGroupAggregateDropdown';
 import { RecordGroupChip } from '@/object-record/record-group/components/RecordGroupChip';
 import { getFieldMetadataItemGqlFieldName } from '@/object-metadata/utils/getFieldMetadataItemGqlFieldName';
+import { opportunityCreateGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityCreateGateHandlerState';
+import { getShouldBlockOpportunityCreate } from '@/object-record/record-persistence-gate/utils/getShouldBlockOpportunityCreate';
 import { recordIndexAggregateDisplayLabelComponentState } from '@/object-record/record-index/states/recordIndexAggregateDisplayLabelComponentState';
 import { recordIndexAggregateDisplayValueForGroupValueComponentFamilyState } from '@/object-record/record-index/states/recordIndexAggregateDisplayValueForGroupValueComponentFamilyState';
 import { useCreateNewIndexRecord } from '@/object-record/record-table/hooks/useCreateNewIndexRecord';
@@ -167,6 +170,10 @@ export const RecordBoardColumnHeader = () => {
     objectMetadataItem: objectMetadataItem,
   });
 
+  const opportunityCreateGateHandler = useAtomValue(
+    opportunityCreateGateHandlerState,
+  );
+
   const recordIndexAggregateDisplayValueForGroupValue =
     useAtomComponentFamilyStateValue(
       recordIndexAggregateDisplayValueForGroupValueComponentFamilyState,
@@ -187,10 +194,24 @@ export const RecordBoardColumnHeader = () => {
   );
 
   const handleCreateNewRecordClick = async () => {
-    await createNewIndexRecord({
-      position: 'first',
+    const recordInput = {
       [getFieldMetadataItemGqlFieldName(selectFieldMetadataItem)]:
         columnDefinition.value,
+    };
+
+    if (
+      getShouldBlockOpportunityCreate({
+        objectNameSingular: objectMetadataItem.nameSingular,
+        recordInput,
+        opportunityCreateGateHandler,
+      })
+    ) {
+      return;
+    }
+
+    await createNewIndexRecord({
+      position: 'first',
+      ...recordInput,
     });
   };
 

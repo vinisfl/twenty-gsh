@@ -63,7 +63,7 @@ export const useRecordIndexGroupsAggregatesGroupBy = ({
     fieldMetadataItems: flattenedFieldMetadataItems,
   });
 
-  const { recordAggregateGqlField } =
+  const { recordAggregateGqlFields } =
     useAggregateGqlFieldsFromRecordIndexGroupAggregates({
       objectMetadataItem,
       recordIndexGroupAggregateFieldMetadataItem:
@@ -73,13 +73,13 @@ export const useRecordIndexGroupsAggregatesGroupBy = ({
 
   const groupByAggregateQuery = useMemo(
     () =>
-      isDefined(recordAggregateGqlField)
+      recordAggregateGqlFields.length > 0
         ? generateGroupByAggregateQuery({
-            aggregateOperationGqlFields: [recordAggregateGqlField],
+            aggregateOperationGqlFields: recordAggregateGqlFields,
             objectMetadataItem,
           })
         : EMPTY_QUERY,
-    [recordAggregateGqlField, objectMetadataItem],
+    [recordAggregateGqlFields, objectMetadataItem],
   );
 
   const anyFieldFilterValue = useAtomComponentStateValue(
@@ -118,7 +118,7 @@ export const useRecordIndexGroupsAggregatesGroupBy = ({
       !isDefined(objectMetadataItem) ||
       !hasReadPermission ||
       skip ||
-      !isDefined(recordAggregateGqlField),
+      recordAggregateGqlFields.length === 0,
     variables: {
       filter: combineFilters([
         anyFieldFilter,

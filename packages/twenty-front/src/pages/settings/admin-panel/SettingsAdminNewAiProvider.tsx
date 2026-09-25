@@ -46,6 +46,7 @@ export const SettingsAdminNewAiProvider = () => {
   const apolloAdminClient = useApolloAdminClient();
   const navigate = useNavigate();
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Select a provider...`, value: '' };
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedModelsDevId, setSelectedModelsDevId] = useState<string | null>(
@@ -259,6 +260,7 @@ export const SettingsAdminNewAiProvider = () => {
               value={selectedModelsDevId ?? undefined}
               onChange={handleProviderSelected}
               options={providerOptions}
+              emptyOption={emptySelectOption}
               withSearchInput
               fullWidth
               callToActionButton={{

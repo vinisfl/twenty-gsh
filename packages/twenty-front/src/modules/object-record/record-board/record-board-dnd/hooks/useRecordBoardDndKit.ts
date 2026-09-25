@@ -9,7 +9,10 @@ import { recordBoardSelectedRecordIdsComponentSelector } from '@/object-record/r
 import { getBoardCardDropBehavior } from '@/object-record/record-board/utils/getBoardCardDropBehavior';
 import { getDestinationIndex } from '@/ui/utilities/drag-and-drop/utils/getDestinationIndex';
 import { resolveDropFromPointer } from '@/ui/utilities/drag-and-drop/utils/resolveDropFromPointer';
+import { recordGroupDefinitionFamilyState } from '@/object-record/record-group/states/recordGroupDefinitionFamilyState';
 import { recordIndexRecordIdsByGroupComponentFamilyState } from '@/object-record/record-index/states/recordIndexRecordIdsByGroupComponentFamilyState';
+import { opportunityStageAdvanceGateHandlerState } from '@/object-record/record-persistence-gate/states/opportunityStageAdvanceGateHandlerState';
+import { getShouldBlockOpportunityStageAdvanceDrop } from '@/object-record/record-persistence-gate/utils/getShouldBlockOpportunityStageAdvanceDrop';
 import { useAtomComponentFamilyStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateCallbackState';
 import { useEndRecordDrag } from '@/object-record/record-drag/hooks/useEndRecordDrag';
 import { useProcessBoardCardDrop } from '@/object-record/record-drag/hooks/useProcessBoardCardDrop';
@@ -43,7 +46,7 @@ export const useRecordBoardDndKit = (): {
 } => {
   const store = useStore();
 
-  const { recordBoardId } = useContext(RecordBoardContext);
+  const { recordBoardId, objectMetadataItem } = useContext(RecordBoardContext);
 
   const currentRecordSorts = useAtomComponentStateCallbackState(
     currentRecordSortsComponentState,
@@ -179,6 +182,25 @@ export const useRecordBoardDndKit = (): {
     const isSameColumn = sourceDroppableId === destinationDroppableId;
 
     if (isSameColumn && destinationIndex === sourceIndex) {
+      resetDragState();
+      return;
+    }
+
+    if (
+      getShouldBlockOpportunityStageAdvanceDrop({
+        objectNameSingular: objectMetadataItem.nameSingular,
+        recordId: sourceId as string,
+        sourceGroup: store.get(
+          recordGroupDefinitionFamilyState.atomFamily(sourceDroppableId),
+        ),
+        destinationGroup: store.get(
+          recordGroupDefinitionFamilyState.atomFamily(destinationDroppableId),
+        ),
+        opportunityStageAdvanceGateHandler: store.get(
+          opportunityStageAdvanceGateHandlerState,
+        ),
+      })
+    ) {
       resetDragState();
       return;
     }

@@ -6,7 +6,7 @@ import { getGroupByQueryResultGqlFieldName } from '@/page-layout/utils/getGroupB
 type TurnRecordIndexGroupByAggregateQueryResultIntoRecordAggregateValueByGroupValueParams =
   {
     queryResult: RecordIndexGroupByQueryResult;
-    recordAggregateGqlField: string;
+    recordAggregateGqlFields: string[];
     objectMetadataItem: EnrichedObjectMetadataItem;
   };
 
@@ -14,7 +14,7 @@ export const turnRecordIndexGroupByAggregateQueryResultIntoRecordAggregateValueB
   ({
     objectMetadataItem,
     queryResult,
-    recordAggregateGqlField,
+    recordAggregateGqlFields,
   }: TurnRecordIndexGroupByAggregateQueryResultIntoRecordAggregateValueByGroupValueParams) => {
     const recordAggregateValueByGroupValueArray: RecordAggregateValueByRecordGroupValue[] =
       [];
@@ -28,13 +28,17 @@ export const turnRecordIndexGroupByAggregateQueryResultIntoRecordAggregateValueB
       if (groupByQueryResultItem.groupByDimensionValues.length === 1) {
         const groupByValue = groupByQueryResultItem.groupByDimensionValues[0];
 
-        const gqlAggregateFieldName = recordAggregateGqlField;
-
-        const aggregateValue = groupByQueryResultItem[gqlAggregateFieldName];
+        const recordAggregateValuesByGqlField = recordAggregateGqlFields.reduce<
+          Record<string, string | number>
+        >((acc, gqlAggregateFieldName) => {
+          acc[gqlAggregateFieldName] =
+            groupByQueryResultItem[gqlAggregateFieldName];
+          return acc;
+        }, {});
 
         recordAggregateValueByGroupValueArray.push({
           recordGroupValue: groupByValue,
-          recordAggregateValue: aggregateValue,
+          recordAggregateValuesByGqlField,
         });
       }
     }

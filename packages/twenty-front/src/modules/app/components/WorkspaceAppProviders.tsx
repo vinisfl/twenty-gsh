@@ -20,6 +20,13 @@ import { IsMinimalMetadataReadyEffect } from '@/metadata-store/effect-components
 import { MinimalMetadataLoadEffect } from '@/metadata-store/effect-components/MinimalMetadataLoadEffect';
 import { UserMetadataProviderInitialEffect } from '@/metadata-store/effect-components/UserMetadataProviderInitialEffect';
 import { ApolloCoreProvider } from '@/object-metadata/components/ApolloCoreProvider';
+import { OpportunityAcceptanceGateModal } from '@/object-record/record-persistence-gate/components/OpportunityAcceptanceGateModal';
+import { OpportunityClosedGateModal } from '@/object-record/record-persistence-gate/components/OpportunityClosedGateModal';
+import { OpportunityCreateGateModal } from '@/object-record/record-persistence-gate/components/OpportunityCreateGateModal';
+import { OpportunityFormalizationChainGateHandler } from '@/object-record/record-persistence-gate/components/OpportunityFormalizationChainGateHandler';
+import { OpportunityLostCancelledGateModal } from '@/object-record/record-persistence-gate/components/OpportunityLostCancelledGateModal';
+import { OpportunityProductionGateModal } from '@/object-record/record-persistence-gate/components/OpportunityProductionGateModal';
+import { OpportunityQualificationGateModal } from '@/object-record/record-persistence-gate/components/OpportunityQualificationGateModal';
 import { WelcomeOverlay } from '@/onboarding/components/WelcomeOverlay/WelcomeOverlay';
 import { CompanyEnrichmentOnboardingEffect } from '@/onboarding/effect-components/CompanyEnrichmentOnboardingEffect';
 import { ApolloAdminProvider } from '@/settings/admin-panel/apollo/components/ApolloAdminProvider';
@@ -71,6 +78,13 @@ export const WorkspaceAppProviders = () => {
                             <PageFavicon />
                             <Outlet />
                             <GlobalFilePreviewModal />
+                            <OpportunityCreateGateModal />
+                            <OpportunityQualificationGateModal />
+                            <OpportunityAcceptanceGateModal />
+                            <OpportunityProductionGateModal />
+                            <OpportunityClosedGateModal />
+                            <OpportunityLostCancelledGateModal />
+                            <OpportunityFormalizationChainGateHandler />
                             <CommandMenuConfirmationModalManager />
                             <CommandRunner />
                           </StrictMode>

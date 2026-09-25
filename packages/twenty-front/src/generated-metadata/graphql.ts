@@ -167,6 +167,7 @@ export type AggregateChartConfiguration = {
 export enum AggregateOperations {
   AVG = 'AVG',
   COUNT = 'COUNT',
+  COUNT_AND_SUM = 'COUNT_AND_SUM',
   COUNT_EMPTY = 'COUNT_EMPTY',
   COUNT_FALSE = 'COUNT_FALSE',
   COUNT_NOT_EMPTY = 'COUNT_NOT_EMPTY',

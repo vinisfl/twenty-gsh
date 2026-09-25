@@ -94,6 +94,7 @@ export const SettingsAdminNewAiModel = () => {
   const apolloAdminClient = useApolloAdminClient();
   const navigate = useNavigate();
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Select a model...`, value: '' };
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCustomModelId, setIsCustomModelId] = useState(false);
@@ -358,6 +359,7 @@ export const SettingsAdminNewAiModel = () => {
                     value={value || undefined}
                     onChange={handleModelIdSelected}
                     options={modelIdOptions}
+                    emptyOption={emptySelectOption}
                     withSearchInput
                     fullWidth
                     callToActionButton={{

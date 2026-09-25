@@ -56,6 +56,7 @@ const StyledFieldAvailableContainer = styled.div`
 
 export const ViewPickerContentCreateMode = () => {
   const { t } = useLingui();
+  const emptySelectOption = { label: t`Select...`, value: '' };
   const { viewPickerMode, setViewPickerMode } = useViewPickerMode();
   const [hasManuallySelectedIcon, setHasManuallySelectedIcon] = useState(false);
   const isCalendarWeekViewEnabled = useIsFeatureEnabled(
@@ -231,6 +232,7 @@ export const ViewPickerContentCreateMode = () => {
                       }))
                     : [{ value: '', label: t`No Select field` }]
                 }
+                emptyOption={emptySelectOption}
                 dropdownId={VIEW_PICKER_KANBAN_FIELD_DROPDOWN_ID}
               />
             </ViewPickerSelectContainer>
@@ -283,6 +285,7 @@ export const ViewPickerContentCreateMode = () => {
                       }))
                     : [{ value: '', label: t`No Date field` }]
                 }
+                emptyOption={emptySelectOption}
                 dropdownId={VIEW_PICKER_CALENDAR_FIELD_DROPDOWN_ID}
               />
             </ViewPickerSelectContainer>

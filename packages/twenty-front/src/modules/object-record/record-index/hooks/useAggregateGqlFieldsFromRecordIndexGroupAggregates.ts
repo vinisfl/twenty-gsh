@@ -26,7 +26,7 @@ export const useAggregateGqlFieldsFromRecordIndexGroupAggregates = ({
 
   if (recordIndexGroupAggregateOperation === AggregateOperations.COUNT) {
     return {
-      recordAggregateGqlField: 'totalCount',
+      recordAggregateGqlFields: ['totalCount'],
     };
   }
 
@@ -42,8 +42,17 @@ export const useAggregateGqlFieldsFromRecordIndexGroupAggregates = ({
     ];
 
   if (!isDefined(recordAggregateGqlField)) {
-    return { recordAggregateGqlField: null };
+    return { recordAggregateGqlFields: [] };
   }
 
-  return { recordAggregateGqlField };
+  if (
+    recordIndexGroupAggregateOperation === AggregateOperations.COUNT_AND_SUM
+  ) {
+    // Order matters: RecordIndexGroupAggregateQueryEffect destructures this as [countGqlField, sumGqlField].
+    return {
+      recordAggregateGqlFields: ['totalCount', recordAggregateGqlField],
+    };
+  }
+
+  return { recordAggregateGqlFields: [recordAggregateGqlField] };
 };

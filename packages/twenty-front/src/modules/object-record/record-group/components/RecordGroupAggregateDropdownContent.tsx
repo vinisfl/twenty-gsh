@@ -5,6 +5,7 @@ import { RecordGroupAggregateDropdownFieldsContent } from '@/object-record/recor
 import { RecordGroupAggregateDropdownMenuContent } from '@/object-record/record-group/components/RecordGroupAggregateDropdownMenuContent';
 import { RecordGroupAggregateDropdownOptionsContent } from '@/object-record/record-group/components/RecordGroupAggregateDropdownOptionsContent';
 import { RecordGroupAggregateDropdownContext } from '@/object-record/record-group/states/context/RecordGroupAggregateDropdownContext';
+import { AggregateOperations } from '@/object-record/record-table/constants/AggregateOperations';
 import { DateAggregateOperations } from '@/object-record/record-table/constants/DateAggregateOperations';
 import { COUNT_AGGREGATE_OPERATION_OPTIONS } from '@/object-record/record-table/record-table-footer/constants/countAggregateOperationOptions';
 import { NON_STANDARD_AGGREGATE_OPERATION_OPTIONS } from '@/object-record/record-table/record-table-footer/constants/nonStandardAggregateOperationsOptions';
@@ -45,6 +46,19 @@ export const RecordGroupAggregateDropdownContent = () => {
         <RecordGroupAggregateDropdownOptionsContent
           availableAggregations={availableAggregations}
           title={t`Count`}
+        />
+      );
+    }
+    case 'countAndSumAggregateOperationsOptions': {
+      const availableAggregations: AvailableFieldsForAggregateOperation =
+        getAvailableFieldsIdsForAggregationFromObjectFields({
+          fields: readableFields,
+          targetAggregateOperations: [AggregateOperations.COUNT_AND_SUM],
+        });
+      return (
+        <RecordGroupAggregateDropdownOptionsContent
+          availableAggregations={availableAggregations}
+          title={t`Count and sum`}
         />
       );
     }

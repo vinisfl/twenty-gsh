@@ -1,4 +1,4 @@
-import { isNumber, isObject, isString } from '@sniptt/guards';
+import { isNumber, isObject } from '@sniptt/guards';
 
 import { type SerializedFileData } from '@/types/SerializedFileData';
 
@@ -16,24 +16,10 @@ export const serializeFileList = (
   const serialized: SerializedFileData[] = [];
   for (let index = 0; index < fileListLike.length; index++) {
     const file = fileListLike[index];
-    if (!isObject(file)) {
+    if (!(file instanceof File)) {
       continue;
     }
-    const fileRecord = file as Record<string, unknown>;
-    if (
-      !isString(fileRecord.name) ||
-      !isNumber(fileRecord.size) ||
-      !isString(fileRecord.type) ||
-      !isNumber(fileRecord.lastModified)
-    ) {
-      continue;
-    }
-    serialized.push({
-      name: fileRecord.name,
-      size: fileRecord.size,
-      type: fileRecord.type,
-      lastModified: fileRecord.lastModified,
-    });
+    serialized.push(file);
   }
 
   return serialized;

@@ -75,8 +75,39 @@ const idealCustomerProfileField = getMockFieldMetadataItemOrThrow({
   fieldName: 'idealCustomerProfile',
 });
 
+const opportunityObjectMetadataItem = getMockObjectMetadataItemOrThrow(
+  CoreObjectNameSingular.Opportunity,
+);
+
+const opportunityStageField = getMockFieldMetadataItemOrThrow({
+  objectMetadataItem: opportunityObjectMetadataItem,
+  fieldName: 'stage',
+});
+
+const opportunityAmountField = getMockFieldMetadataItemOrThrow({
+  objectMetadataItem: opportunityObjectMetadataItem,
+  fieldName: 'amount',
+});
+
+const opportunityCloseDateField = getMockFieldMetadataItemOrThrow({
+  objectMetadataItem: opportunityObjectMetadataItem,
+  fieldName: 'closeDate',
+});
+
+const opportunityPointOfContactField = getMockFieldMetadataItemOrThrow({
+  objectMetadataItem: opportunityObjectMetadataItem,
+  fieldName: 'pointOfContact',
+});
+
+const opportunityOwnerField = getMockFieldMetadataItemOrThrow({
+  objectMetadataItem: opportunityObjectMetadataItem,
+  fieldName: 'owner',
+});
+
 const TEST_RECORD_ID = 'test-fields-widget-record-123';
+const TEST_OPPORTUNITY_RECORD_ID = 'test-fields-widget-opportunity-456';
 const FIELDS_VIEW_ID = 'test-fields-view-001';
+const OPPORTUNITY_FIELDS_VIEW_ID = 'test-opportunity-fields-view-001';
 const TAB_ID_OVERVIEW = 'tab-overview';
 
 const mockCompanyRecord: ObjectRecord = {
@@ -105,6 +136,19 @@ const mockCompanyRecord: ObjectRecord = {
     amountMicros: 5000000000000,
     currencyCode: 'USD',
   },
+};
+
+const mockOpportunityRecord: ObjectRecord = {
+  __typename: 'Opportunity',
+  id: TEST_OPPORTUNITY_RECORD_ID,
+  stage: 'MEETING',
+  amount: null,
+  closeDate: null,
+  pointOfContact: null,
+  owner: null,
+  // GSH's funnel stage field — "Aceite e cadastro" maps to the
+  // "Formalização" group, see OpportunityFunnelStageValueToGroupName.
+  eventProcessStage: 'ACCEPTANCE_REGISTRATION',
 };
 
 const setRecordInStore = (recordId: string, record: ObjectRecord) => {
@@ -235,13 +279,14 @@ const createViewFieldGroup = (
   position: number,
   viewFields: ReturnType<typeof createViewField>[],
   isVisible = true,
+  viewId: string = FIELDS_VIEW_ID,
 ) => ({
   id,
   name,
   position,
   isVisible,
   isActive: true,
-  viewId: FIELDS_VIEW_ID,
+  viewId,
   viewFields,
 });
 
@@ -542,5 +587,232 @@ export const Empty: Story = {
         canvas.getByText('Configure this widget to display fields'),
       ).toBeVisible();
     });
+  },
+};
+
+const renderOpportunityFieldsWidgetForFunnelStage = (record: ObjectRecord) => {
+  const briefingFields = [
+    createViewField('vf-stage', opportunityStageField.id, 0, 'group-briefing'),
+  ];
+  const commercialFields = [
+    createViewField(
+      'vf-amount',
+      opportunityAmountField.id,
+      0,
+      'group-commercial',
+    ),
+  ];
+  const formalizationFields = [
+    createViewField(
+      'vf-close-date',
+      opportunityCloseDateField.id,
+      0,
+      'group-formalization',
+    ),
+  ];
+  const productionFields = [
+    createViewField(
+      'vf-point-of-contact',
+      opportunityPointOfContactField.id,
+      0,
+      'group-production',
+    ),
+  ];
+  const postEventFields = [
+    createViewField('vf-owner', opportunityOwnerField.id, 0, 'group-post'),
+  ];
+
+  const view = createView({
+    id: OPPORTUNITY_FIELDS_VIEW_ID,
+    objectMetadataId: opportunityObjectMetadataItem.id,
+    viewFields: [
+      ...briefingFields,
+      ...commercialFields,
+      ...formalizationFields,
+      ...productionFields,
+      ...postEventFields,
+    ],
+    viewFieldGroups: [
+      createViewFieldGroup(
+        'group-briefing',
+        'Briefing do evento',
+        0,
+        briefingFields,
+        true,
+        OPPORTUNITY_FIELDS_VIEW_ID,
+      ),
+      createViewFieldGroup(
+        'group-commercial',
+        'Comercial e proposta',
+        1,
+        commercialFields,
+        true,
+        OPPORTUNITY_FIELDS_VIEW_ID,
+      ),
+      createViewFieldGroup(
+        'group-formalization',
+        'Formalização',
+        2,
+        formalizationFields,
+        true,
+        OPPORTUNITY_FIELDS_VIEW_ID,
+      ),
+      createViewFieldGroup(
+        'group-production',
+        'Produção do evento',
+        3,
+        productionFields,
+        true,
+        OPPORTUNITY_FIELDS_VIEW_ID,
+      ),
+      createViewFieldGroup(
+        'group-post',
+        'Pós-evento',
+        4,
+        postEventFields,
+        true,
+        OPPORTUNITY_FIELDS_VIEW_ID,
+      ),
+    ],
+  });
+
+  const widget = createFieldsWidget(OPPORTUNITY_FIELDS_VIEW_ID);
+  widget.objectMetadataId = opportunityObjectMetadataItem.id;
+
+  const pageLayoutData = createPageLayoutWithWidget(
+    widget,
+    opportunityObjectMetadataItem.id,
+  );
+
+  setTestObjectMetadataItemsInMetadataStore(
+    jotaiStore,
+    getTestEnrichedObjectMetadataItemsMock(),
+  );
+  jotaiStore.set(isMinimalMetadataReadyState.atom, true);
+  setTestViewsInMetadataStore(jotaiStore, [view]);
+  jotaiStore.set(
+    pageLayoutPersistedComponentState.atomFamily({
+      instanceId: PAGE_LAYOUT_TEST_INSTANCE_ID,
+    }),
+    pageLayoutData,
+  );
+  jotaiStore.set(
+    pageLayoutDraftComponentState.atomFamily({
+      instanceId: PAGE_LAYOUT_TEST_INSTANCE_ID,
+    }),
+    pageLayoutData,
+  );
+  setRecordInStore(record.id, record);
+
+  return (
+    <div style={{ width: '400px', padding: '20px' }}>
+      <JestMetadataAndApolloMocksWrapper>
+        <CoreClientProviderWrapper>
+          <PageLayoutTestWrapper store={jotaiStore}>
+            <LayoutRenderingProvider
+              value={{
+                isInSidePanel: false,
+                layoutType: PageLayoutType.RECORD_PAGE,
+                targetRecordIdentifier: {
+                  id: record.id,
+                  targetObjectNameSingular:
+                    opportunityObjectMetadataItem.nameSingular,
+                },
+              }}
+            >
+              <PageLayoutContentProvider
+                value={{
+                  layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+                  presentation: 'stack',
+                  tabId: TAB_ID_OVERVIEW,
+                }}
+              >
+                <WidgetComponentInstanceContext.Provider
+                  value={{ instanceId: widget.id }}
+                >
+                  <FieldsWidget widget={widget} />
+                </WidgetComponentInstanceContext.Provider>
+              </PageLayoutContentProvider>
+            </LayoutRenderingProvider>
+          </PageLayoutTestWrapper>
+        </CoreClientProviderWrapper>
+      </JestMetadataAndApolloMocksWrapper>
+    </div>
+  );
+};
+
+export const WithFunnelStageSync: Story = {
+  render: () =>
+    renderOpportunityFieldsWidgetForFunnelStage(mockOpportunityRecord),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // The record's eventProcessStage is "ACCEPTANCE_REGISTRATION", which maps
+    // to "Formalização" — the two groups before it should be marked
+    // completed, and it should render expanded (its field is visible).
+    const briefingCompletedIcon = await canvas.findByTitle(
+      'Briefing do evento — Completed',
+    );
+    expect(briefingCompletedIcon).toBeVisible();
+
+    const commercialCompletedIcon = await canvas.findByTitle(
+      'Comercial e proposta — Completed',
+    );
+    expect(commercialCompletedIcon).toBeVisible();
+
+    expect(
+      canvas.queryByTitle('Formalização — Completed'),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTitle('Produção do evento — Completed'),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTitle('Pós-evento — Completed'),
+    ).not.toBeInTheDocument();
+
+    const formalizationHeader = await canvas.findByText('Formalização');
+    expect(formalizationHeader).toBeVisible();
+
+    const closeDateLabels = await canvas.findAllByText('Close date');
+    expect(closeDateLabels.length).toBeGreaterThan(0);
+    expect(closeDateLabels[0]).toBeVisible();
+  },
+};
+
+export const WithFunnelStageOutOfFunnel: Story = {
+  render: () =>
+    renderOpportunityFieldsWidgetForFunnelStage({
+      ...mockOpportunityRecord,
+      // LOST/CANCELLED map to no group — every group should render
+      // collapsed, and none should show the completed indicator.
+      eventProcessStage: 'LOST',
+    }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    const briefingHeader = await canvas.findByText('Briefing do evento');
+    expect(briefingHeader).toBeVisible();
+
+    expect(
+      canvas.queryByTitle('Briefing do evento — Completed'),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTitle('Comercial e proposta — Completed'),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTitle('Formalização — Completed'),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTitle('Produção do evento — Completed'),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTitle('Pós-evento — Completed'),
+    ).not.toBeInTheDocument();
+
+    // Every group's content should be collapsed, not just the ones after
+    // some computed "current" group.
+    expect(canvas.queryByText('Stage')).not.toBeInTheDocument();
+    expect(canvas.queryAllByText('Close date')).toHaveLength(0);
+    expect(canvas.queryByText('Owner')).not.toBeInTheDocument();
   },
 };

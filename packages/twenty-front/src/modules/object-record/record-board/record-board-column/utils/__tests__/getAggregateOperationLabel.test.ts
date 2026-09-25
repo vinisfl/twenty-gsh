@@ -17,6 +17,9 @@ describe('getAggregateOperationLabel', () => {
     expect(getAggregateOperationLabel(AggregateOperations.COUNT)).toBe(
       'Count all',
     );
+    expect(getAggregateOperationLabel(AggregateOperations.COUNT_AND_SUM)).toBe(
+      'Count and sum',
+    );
     expect(getAggregateOperationLabel(AggregateOperations.COUNT_EMPTY)).toBe(
       'Count empty',
     );
